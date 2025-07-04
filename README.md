@@ -37,11 +37,71 @@ graph TD
 
 ## 安装要求
 
-- Python 3.12+
+- Python 3.11+
 - NumPy
 - SciPy
 - AsyncIO
 - ONNXRuntime 或 VLLM (根据选择的后端)
+
+## 安装指南
+
+### 推荐安装方式 (uv + Poetry)
+
+[uv](https://github.com/astral-sh/uv) 是一个极速的Python包安装器和解析器，与Poetry结合使用可以获得最佳的依赖管理体验。
+
+1. **安装uv和Poetry**
+
+```bash
+# 安装uv
+curl -sSf https://install.python-poetry.org | python3 -
+pip install uv
+```
+
+2. **使用uv安装项目依赖**
+
+```bash
+# 克隆仓库
+git clone https://github.com/xucailiang/cascade.git
+cd cascade
+
+# 使用uv加速Poetry依赖安装
+uv pip install poetry
+uv poetry install  # 安装基础依赖
+
+# 安装可选依赖
+uv poetry install --extras "onnx"  # 安装ONNX后端
+uv poetry install --extras "vllm"  # 安装VLLM后端
+uv poetry install --extras "dev"   # 安装开发依赖
+uv poetry install --extras "docs"  # 安装文档依赖
+```
+
+### 传统安装方式 (Poetry)
+
+```bash
+# 安装Poetry
+curl -sSf https://install.python-poetry.org | python3 -
+
+# 克隆仓库
+git clone https://github.com/xucailiang/cascade.git
+cd cascade
+
+# 使用Poetry安装依赖
+poetry install  # 安装基础依赖
+poetry install --extras "onnx"  # 安装ONNX后端
+poetry install --extras "vllm"  # 安装VLLM后端
+```
+
+### 使用pip安装
+
+```bash
+# 从PyPI安装
+pip install cascade
+
+# 安装可选依赖
+pip install cascade[onnx]  # 安装ONNX后端
+pip install cascade[vllm]  # 安装VLLM后端
+pip install cascade[dev]   # 安装开发依赖
+```
 
 ## 快速开始
 
@@ -184,7 +244,11 @@ Cascade提供了多种性能优化选项：
 
 ## 许可证
 
-本项目采用Apache License 2.0许可证。详情请参见[LICENSE](LICENSE)文件。
+本项目采用MIT许可证。详情请参见[LICENSE](LICENSE)文件。
+
+## 作者
+
+- Xucailiang (xucailiang.ai@gmail.com)
 
 ## 致谢
 

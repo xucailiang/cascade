@@ -2,9 +2,15 @@
 
 We welcome contributions from the community!
 
+## Repository
+
+- **GitHub**: [https://github.com/xucailiang/cascade](https://github.com/xucailiang/cascade)
+- **License**: MIT
+- **Maintainer**: Xucailiang (xucailiang.ai@gmail.com)
+
 ## Development Setup
 
-1.  **Fork and Clone**: Fork the repository and clone it locally.
+1.  **Fork and Clone**: Fork the [repository](https://github.com/xucailiang/cascade) and clone it locally.
 2.  **Install Hatch**: `pip install hatch`
 3.  **Activate Environment**: `hatch shell`
 4.  **Install Pre-commit Hooks**: `pre-commit install`

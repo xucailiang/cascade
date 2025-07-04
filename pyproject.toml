@@ -7,12 +7,12 @@ name = "cascade"
 version = "0.1.0"
 description = "高性能异步并行VAD处理库"
 readme = "README.md"
-license = {text = "Apache-2.0"}
+license = {text = "MIT"}
 authors = [
-    {name = "Cascade Team", email = "team@cascade-vad.org"}
+    {name = "Xucailiang", email = "xucailiang.ai@gmail.com"}
 ]
 maintainers = [
-    {name = "Cascade Team", email = "team@cascade-vad.org"}
+    {name = "Xucailiang", email = "xucailiang.ai@gmail.com"}
 ]
 keywords = [
     "voice-activity-detection", "vad", "audio-processing", 
@@ -21,7 +21,7 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
@@ -74,14 +74,34 @@ vllm = [
 
 # 完整安装
 full = [
-    "cascade[dev,docs,onnx,vllm]"
+    # 开发依赖
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-benchmark>=4.0.0",
+    "pytest-xdist>=3.3.0",
+    "black>=23.9.0",
+    "isort>=5.12.0",
+    "mypy>=1.6.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.5.0",
+    # 文档依赖
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+    "mkdocstrings[python]>=0.23.0",
+    "markdown-include>=0.8.0",
+    # ONNX后端
+    "onnxruntime>=1.16.0,<2.0.0",
+    # VLLM后端
+    "vllm>=0.2.0,<1.0.0",
+    "torch>=2.0.0,<3.0.0",
 ]
 
 [project.urls]
 Documentation = "https://cascade-vad.readthedocs.io/"
-Repository = "https://github.com/cascade-team/cascade"
-Issues = "https://github.com/cascade-team/cascade/issues"
-Changelog = "https://github.com/cascade-team/cascade/blob/main/CHANGELOG.md"
+Repository = "https://github.com/xucailiang/cascade"
+Issues = "https://github.com/xucailiang/cascade/issues"
+Changelog = "https://github.com/xucailiang/cascade/blob/main/CHANGELOG.md"
 
 [project.scripts]
 cascade-benchmark = "cascade.scripts.benchmark:main"

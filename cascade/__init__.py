@@ -31,9 +31,9 @@ Cascade是一个专为语音活动检测(VAD)设计的高性能、低延迟音�
 
 # 版本信息
 __version__ = "0.1.0"
-__author__ = "Cascade Team"
-__license__ = "Apache-2.0"
-__email__ = "team@cascade-vad.org"
+__author__ = "Xucailiang"
+__license__ = "MIT"
+__email__ = "xucailiang.ai@gmail.com"
 
 # 核心模块导入
 from .types import (

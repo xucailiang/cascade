@@ -25,8 +25,8 @@ theme:
     - content.code.annotation
     - content.code.copy
   language: en
-repo_url: https://github.com/your_username/cascade
-repo_name: your_username/cascade
+repo_url: https://github.com/xucailiang/cascade
+repo_name: xucailiang/cascade
 
 plugins:
   - search
