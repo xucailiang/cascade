@@ -1,10 +1,10 @@
-# Pre-VAD: 音频流并行VAD处理库
+# Cascade: 音频流并行VAD处理库
 
-Pre-VAD是一个高性能、低延迟的音频流处理库，专为语音活动检测(VAD)设计。它通过并行处理技术，显著降低VAD处理延迟，同时保证检测结果的准确性。
+Cascade是一个高性能、低延迟的音频流处理库，专为语音活动检测(VAD)设计。它通过并行处理技术，显著降低VAD处理延迟，同时保证检测结果的准确性。
 
 ## 项目背景
 
-传统VAD处理方式存在严重延迟问题。例如，当处理2秒的音频时，需要将其切割为多个16ms的小块（每块256个采样点）依次处理，这导致了显著的处理延迟。Pre-VAD通过将音频分割为多个大块并行处理，同时使用重叠区域解决边界问题，大幅降低了处理延迟。
+传统VAD处理方式存在严重延迟问题。例如，当处理2秒的音频时，需要将其切割为多个16ms的小块（每块256个采样点）依次处理，这导致了显著的处理延迟。Cascade通过将音频分割为多个大块并行处理，同时使用重叠区域解决边界问题，大幅降低了处理延迟。
 
 ## 核心特性
 
@@ -19,7 +19,7 @@ Pre-VAD是一个高性能、低延迟的音频流处理库，专为语音活动�
 
 ## 系统架构
 
-Pre-VAD由三个核心组件组成：
+Cascade由三个核心组件组成：
 
 1. **音频处理器**：负责接收音频流、分割音频块、处理边界问题
 2. **音频缓冲区**：提供高效的音频数据存储和访问机制
@@ -49,28 +49,32 @@ graph TD
 
 ```python
 import asyncio
-from pre_vad import AsyncParallelVAD
+from cascade import AsyncParallelVAD
 
 async def main():
-    # 创建VAD实例
+    # 创建VAD实例 - 线程池+模型实例池架构
     vad = AsyncParallelVAD(
         backend_type="onnx",
-        num_workers=4,
-        hop_size=256,
+        num_workers=4,  # 4个线程，每个绑定独立的VAD实例
         threshold=0.5
     )
     
-    # 初始化
-    await vad.initialize()
+    # 异步初始化 - 包含模型加载和线程预热
+    model_config = {
+        "model_path": "path/to/vad_model.onnx",
+        "optimization_level": "all"
+    }
+    await vad.initialize(model_config)
     
-    # 处理音频文件
-    results = await vad.process_file("audio.wav")
+    # 流式处理音频文件
+    async for result in vad.process_file("audio.wav"):
+        if "result" in result:
+            vad_output = result["result"]
+            metadata = result["metadata"]
+            print(f"音频块 {metadata['sequence_number']}: "
+                  f"语音概率={vad_output['probability']:.3f}")
     
-    # 处理结果
-    for segment in results:
-        print(f"语音段: {segment.start_time_ms}ms - {segment.end_time_ms}ms")
-    
-    # 关闭VAD实例
+    # 优雅关闭，释放所有线程和模型资源
     await vad.close()
 
 # 运行主函数
@@ -81,30 +85,49 @@ asyncio.run(main())
 
 ```python
 async def process_stream(audio_stream):
+    # 高性能流式处理配置
     vad = AsyncParallelVAD(
         backend_type="onnx",
         num_workers=4,
-        hop_size=256,
+        chunk_duration_ms=500,  # 500ms音频块
+        overlap_ms=16,          # 16ms重叠
         threshold=0.5
     )
     
-    await vad.initialize()
+    # 模型配置
+    model_config = {
+        "model_path": "path/to/vad_model.onnx",
+        "optimization_level": "all",
+        "providers": ["CPUExecutionProvider"]
+    }
+    await vad.initialize(model_config)
     
+    # 并行流式处理
     async for chunk in audio_stream:
-        await vad.process_chunk(chunk)
-        
-        # 获取实时结果
-        if vad.has_results():
-            events = await vad.get_events()
-            for event in events:
-                if event.type == "speech_start":
-                    print(f"检测到语音开始: {event.time_ms}ms")
-                elif event.type == "speech_end":
-                    print(f"检测到语音结束: {event.time_ms}ms")
+        # 高效的异步处理 - 每个音频块并行提交给线程池
+        async for result in vad.process_stream_chunk(chunk):
+            if "result" in result:
+                vad_result = result["result"]
+                metadata = result["metadata"]
+                
+                # 实时语音事件检测
+                if vad_result["is_speech"]:
+                    print(f"检测到语音: 时间={metadata['start_time_ms']}ms, "
+                          f"概率={vad_result['probability']:.3f}")
+                
+                # 语音段边界检测
+                if vad_result.get("speech_start"):
+                    print(f"语音开始: {metadata['start_time_ms']}ms")
+                elif vad_result.get("speech_end"):
+                    print(f"语音结束: {metadata['end_time_ms']}ms")
     
-    # 处理剩余数据
+    # 处理缓冲区中剩余数据
     await vad.finalize()
-    final_events = await vad.get_events()
+    
+    # 获取性能统计
+    stats = await vad.get_performance_stats()
+    print(f"处理统计: 平均延迟={stats['avg_latency_ms']:.2f}ms, "
+          f"吞吐量={stats['throughput_qps']:.1f} chunks/s")
     
     await vad.close()
 ```
@@ -131,7 +154,7 @@ vad = AsyncParallelVAD(**config)
 
 ## 性能优化
 
-Pre-VAD提供了多种性能优化选项：
+Cascade提供了多种性能优化选项：
 
 - **线程数调整**：根据CPU核心数调整`num_workers`参数
 - **块大小调整**：通过`chunk_duration_ms`参数调整块大小

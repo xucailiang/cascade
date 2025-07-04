@@ -1,0 +1,36 @@
+name: Cascade CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install hatch
+        hatch env create
+        
+    - name: Lint with Ruff
+      run: hatch run lint:style
+
+    - name: Type check with MyPy
+      run: hatch run lint:typing
+
+    - name: Test with pytest
+      run: hatch run test:cov
