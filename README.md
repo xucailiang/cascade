@@ -231,6 +231,43 @@ Cascade提供了多种性能优化选项：
 - [音频缓冲区](docs/音频缓冲区.md)：音频缓冲区设计
 - [音频格式处理](docs/音频格式处理.md)：音频格式处理设计
 - [音频处理器架构设计](docs/音频处理器架构设计.md)：详细的音频处理器架构设计
+- [核心类型系统](docs/核心类型系统.md)：类型系统设计与使用指南
+
+### 类型系统
+
+Cascade使用pydantic构建了强大的类型系统，提供了完整的类型安全和数据验证功能：
+
+```python
+from cascade.types import AudioConfig, VADConfig, AudioFormat
+
+# 创建音频配置
+audio_config = AudioConfig(
+    sample_rate=16000,
+    format=AudioFormat.WAV,
+    channels=1,
+    dtype="float32"
+)
+
+# 创建VAD配置
+vad_config = VADConfig(
+    backend="onnx",
+    workers=4,
+    threshold=0.5,
+    chunk_duration_ms=500,
+    overlap_ms=16
+)
+
+# 自动验证和错误处理
+try:
+    invalid_config = AudioConfig(sample_rate=10000)  # 不支持的采样率
+except Exception as e:
+    print(f"验证错误: {str(e)}")
+
+# 查看更多示例
+# python examples/types_usage.py
+```
+
+类型系统是Cascade的基础，所有模块间通信都使用这些类型，确保类型安全和数据一致性。
 
 ## 贡献指南
 
