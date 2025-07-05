@@ -230,7 +230,7 @@ class TestInternalIntegration(unittest.TestCase):
             time.sleep(0.2)
 
             # 导出性能指标
-            json_str = self.performance_monitor.export_metrics_json(temp_path)
+            self.performance_monitor.export_metrics_json(temp_path)
 
             # 停止性能指标收集
             self.performance_monitor.stop_collection()

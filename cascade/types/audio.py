@@ -29,7 +29,7 @@ class AudioFormat(str, Enum):
 class AudioConfig(BaseModel):
     """
     音频处理配置
-    
+
     定义音频数据的基本参数，影响整个处理流程。
     """
     sample_rate: int = Field(
@@ -128,7 +128,7 @@ class AudioConfig(BaseModel):
 class AudioChunk(BaseModel):
     """
     音频数据块
-    
+
     封装音频数据及其元数据，用于模块间传输。
     """
     data: Any = Field(

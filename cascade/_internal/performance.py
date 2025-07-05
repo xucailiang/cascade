@@ -30,7 +30,7 @@ class PerformanceMetric:
     def __init__(self, name: str, description: str = ""):
         """
         初始化性能指标
-        
+
         Args:
             name: 指标名称
             description: 指标描述
@@ -42,7 +42,7 @@ class PerformanceMetric:
     def to_dict(self) -> dict[str, Any]:
         """
         转换为字典
-        
+
         Returns:
             字典表示
         """
@@ -60,7 +60,7 @@ class CounterMetric(PerformanceMetric):
     def __init__(self, name: str, description: str = ""):
         """
         初始化计数器指标
-        
+
         Args:
             name: 指标名称
             description: 指标描述
@@ -71,10 +71,10 @@ class CounterMetric(PerformanceMetric):
     def increment(self, delta: int = 1) -> int:
         """
         增加计数
-        
+
         Args:
             delta: 增加量，默认为1
-            
+
         Returns:
             增加后的计数
         """
@@ -83,10 +83,10 @@ class CounterMetric(PerformanceMetric):
     def decrement(self, delta: int = 1) -> int:
         """
         减少计数
-        
+
         Args:
             delta: 减少量，默认为1
-            
+
         Returns:
             减少后的计数
         """
@@ -95,7 +95,7 @@ class CounterMetric(PerformanceMetric):
     def get(self) -> int:
         """
         获取当前计数
-        
+
         Returns:
             当前计数
         """
@@ -108,7 +108,7 @@ class CounterMetric(PerformanceMetric):
     def to_dict(self) -> dict[str, Any]:
         """
         转换为字典
-        
+
         Returns:
             字典表示
         """
@@ -123,7 +123,7 @@ class GaugeMetric(PerformanceMetric):
     def __init__(self, name: str, description: str = "", initial_value: float = 0.0):
         """
         初始化仪表盘指标
-        
+
         Args:
             name: 指标名称
             description: 指标描述
@@ -135,7 +135,7 @@ class GaugeMetric(PerformanceMetric):
     def set(self, value: float) -> None:
         """
         设置值
-        
+
         Args:
             value: 新值
         """
@@ -144,7 +144,7 @@ class GaugeMetric(PerformanceMetric):
     def get(self) -> float:
         """
         获取当前值
-        
+
         Returns:
             当前值
         """
@@ -153,7 +153,7 @@ class GaugeMetric(PerformanceMetric):
     def to_dict(self) -> dict[str, Any]:
         """
         转换为字典
-        
+
         Returns:
             字典表示
         """
@@ -168,7 +168,7 @@ class HistogramMetric(PerformanceMetric):
     def __init__(self, name: str, description: str = ""):
         """
         初始化直方图指标
-        
+
         Args:
             name: 指标名称
             description: 指标描述
@@ -180,7 +180,7 @@ class HistogramMetric(PerformanceMetric):
     def record(self, value: float) -> None:
         """
         记录值
-        
+
         Args:
             value: 要记录的值
         """
@@ -190,7 +190,7 @@ class HistogramMetric(PerformanceMetric):
     def count(self) -> int:
         """
         获取记录的值的数量
-        
+
         Returns:
             记录的值的数量
         """
@@ -200,7 +200,7 @@ class HistogramMetric(PerformanceMetric):
     def sum(self) -> float:
         """
         获取记录的值的总和
-        
+
         Returns:
             记录的值的总和
         """
@@ -210,7 +210,7 @@ class HistogramMetric(PerformanceMetric):
     def average(self) -> float | None:
         """
         获取记录的值的平均值
-        
+
         Returns:
             记录的值的平均值，如果没有记录则返回None
         """
@@ -222,7 +222,7 @@ class HistogramMetric(PerformanceMetric):
     def min(self) -> float | None:
         """
         获取记录的值的最小值
-        
+
         Returns:
             记录的值的最小值，如果没有记录则返回None
         """
@@ -234,7 +234,7 @@ class HistogramMetric(PerformanceMetric):
     def max(self) -> float | None:
         """
         获取记录的值的最大值
-        
+
         Returns:
             记录的值的最大值，如果没有记录则返回None
         """
@@ -246,7 +246,7 @@ class HistogramMetric(PerformanceMetric):
     def median(self) -> float | None:
         """
         获取记录的值的中位数
-        
+
         Returns:
             记录的值的中位数，如果没有记录则返回None
         """
@@ -258,10 +258,10 @@ class HistogramMetric(PerformanceMetric):
     def percentile(self, p: float) -> float | None:
         """
         获取记录的值的百分位数
-        
+
         Args:
             p: 百分位数，范围为[0, 100]
-            
+
         Returns:
             记录的值的百分位数，如果没有记录则返回None
         """
@@ -284,7 +284,7 @@ class HistogramMetric(PerformanceMetric):
     def to_dict(self) -> dict[str, Any]:
         """
         转换为字典
-        
+
         Returns:
             字典表示
         """
@@ -310,7 +310,7 @@ class TimerMetric(PerformanceMetric):
     def __init__(self, name: str, description: str = ""):
         """
         初始化计时器指标
-        
+
         Args:
             name: 指标名称
             description: 指标描述
@@ -328,7 +328,7 @@ class TimerMetric(PerformanceMetric):
     def stop(self) -> float:
         """
         停止计时并记录耗时
-        
+
         Returns:
             耗时（秒）
         """
@@ -344,7 +344,7 @@ class TimerMetric(PerformanceMetric):
     def time(self) -> 'TimerContext':
         """
         获取计时器上下文
-        
+
         Returns:
             计时器上下文
         """
@@ -353,7 +353,7 @@ class TimerMetric(PerformanceMetric):
     def get_active_count(self) -> int:
         """
         获取活动计时器数量
-        
+
         Returns:
             活动计时器数量
         """
@@ -367,7 +367,7 @@ class TimerMetric(PerformanceMetric):
     def to_dict(self) -> dict[str, Any]:
         """
         转换为字典
-        
+
         Returns:
             字典表示
         """
@@ -385,7 +385,7 @@ class TimerContext:
     def __init__(self, timer: TimerMetric):
         """
         初始化计时器上下文
-        
+
         Args:
             timer: 计时器指标
         """
@@ -404,11 +404,11 @@ class TimerContext:
 def timed(timer_name: str, description: str = "") -> Callable:
     """
     计时装饰器
-    
+
     Args:
         timer_name: 计时器名称
         description: 计时器描述
-        
+
     Returns:
         装饰器函数
     """
@@ -442,7 +442,7 @@ class SystemMetrics:
     def collect(self) -> dict[str, Any]:
         """
         收集系统指标
-        
+
         Returns:
             系统指标字典
         """
@@ -526,7 +526,7 @@ class PerformanceMonitor:
     def get_instance(cls) -> 'PerformanceMonitor':
         """
         获取单例实例
-        
+
         Returns:
             性能监控器实例
         """
@@ -554,11 +554,11 @@ class PerformanceMonitor:
     def get_or_create_counter(self, name: str, description: str = "") -> CounterMetric:
         """
         获取或创建计数器指标
-        
+
         Args:
             name: 指标名称
             description: 指标描述
-            
+
         Returns:
             计数器指标
         """
@@ -571,12 +571,12 @@ class PerformanceMonitor:
     def get_or_create_gauge(self, name: str, description: str = "", initial_value: float = 0.0) -> GaugeMetric:
         """
         获取或创建仪表盘指标
-        
+
         Args:
             name: 指标名称
             description: 指标描述
             initial_value: 初始值
-            
+
         Returns:
             仪表盘指标
         """
@@ -589,11 +589,11 @@ class PerformanceMonitor:
     def get_or_create_histogram(self, name: str, description: str = "") -> HistogramMetric:
         """
         获取或创建直方图指标
-        
+
         Args:
             name: 指标名称
             description: 指标描述
-            
+
         Returns:
             直方图指标
         """
@@ -606,11 +606,11 @@ class PerformanceMonitor:
     def get_or_create_timer(self, name: str, description: str = "") -> TimerMetric:
         """
         获取或创建计时器指标
-        
+
         Args:
             name: 指标名称
             description: 指标描述
-            
+
         Returns:
             计时器指标
         """
@@ -623,7 +623,7 @@ class PerformanceMonitor:
     def collect_system_metrics(self) -> dict[str, Any]:
         """
         收集系统指标
-        
+
         Returns:
             系统指标字典
         """
@@ -641,7 +641,7 @@ class PerformanceMonitor:
     def start_collection(self, interval: int = 60) -> None:
         """
         开始定期收集系统指标
-        
+
         Args:
             interval: 收集间隔（秒）
         """
@@ -688,7 +688,7 @@ class PerformanceMonitor:
     def get_all_metrics(self) -> dict[str, Any]:
         """
         获取所有指标
-        
+
         Returns:
             所有指标的字典
         """
@@ -746,10 +746,10 @@ class PerformanceMonitor:
     def export_metrics_json(self, file_path: str | None = None) -> str:
         """
         导出指标为JSON
-        
+
         Args:
             file_path: 文件路径，如果提供则写入文件
-            
+
         Returns:
             JSON字符串
         """

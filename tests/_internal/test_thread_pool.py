@@ -45,7 +45,7 @@ class TestTaskStatus(unittest.TestCase):
         ]
 
         # 检查唯一性
-        self.assertEqual(len(statuses), len(set(status.value for status in statuses)))
+        self.assertEqual(len(statuses), len({status.value for status in statuses}))
 
 
 class TestTaskStats(unittest.TestCase):

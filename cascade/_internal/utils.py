@@ -50,7 +50,7 @@ class Singleton(type):
     def __call__(cls, *args, **kwargs):
         with cls._lock:
             if cls not in cls._instances:
-                cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+                cls._instances[cls] = super().__call__(*args, **kwargs)
             return cls._instances[cls]
 
 
@@ -86,7 +86,7 @@ class InternalUtils:
     ) -> logging.Logger:
         """
         设置日志
-        
+
         Args:
             level: 全局日志级别
             log_file: 日志文件路径
@@ -96,7 +96,7 @@ class InternalUtils:
             file_level: 文件日志级别，默认与全局级别相同
             console_level: 控制台日志级别，默认与全局级别相同
             capture_warnings: 是否捕获警告
-            
+
         Returns:
             根日志记录器
         """
@@ -146,7 +146,7 @@ class InternalUtils:
     def get_timestamp() -> float:
         """
         获取当前时间戳
-        
+
         Returns:
             当前时间戳（秒）
         """
@@ -156,7 +156,7 @@ class InternalUtils:
     def get_iso_timestamp() -> str:
         """
         获取ISO格式的当前时间戳
-        
+
         Returns:
             ISO格式的当前时间戳
         """
@@ -166,10 +166,10 @@ class InternalUtils:
     def format_time(seconds: float) -> str:
         """
         格式化时间
-        
+
         Args:
             seconds: 秒数
-            
+
         Returns:
             格式化后的时间字符串
         """
@@ -194,10 +194,10 @@ class InternalUtils:
     def format_size(size_bytes: int) -> str:
         """
         格式化文件大小
-        
+
         Args:
             size_bytes: 字节数
-            
+
         Returns:
             格式化后的大小字符串
         """
@@ -214,7 +214,7 @@ class InternalUtils:
     def generate_uuid() -> str:
         """
         生成UUID
-        
+
         Returns:
             UUID字符串
         """
@@ -225,12 +225,12 @@ class InternalUtils:
                               include_special: bool = False) -> str:
         """
         生成随机字符串
-        
+
         Args:
             length: 字符串长度
             include_digits: 是否包含数字
             include_special: 是否包含特殊字符
-            
+
         Returns:
             随机字符串
         """
@@ -246,10 +246,10 @@ class InternalUtils:
     def calculate_md5(data: str | bytes) -> str:
         """
         计算MD5哈希
-        
+
         Args:
             data: 要计算哈希的数据
-            
+
         Returns:
             MD5哈希字符串
         """
@@ -262,10 +262,10 @@ class InternalUtils:
     def calculate_sha256(data: str | bytes) -> str:
         """
         计算SHA256哈希
-        
+
         Args:
             data: 要计算哈希的数据
-            
+
         Returns:
             SHA256哈希字符串
         """
@@ -278,10 +278,10 @@ class InternalUtils:
     def compress_data(data: str | bytes) -> bytes:
         """
         压缩数据
-        
+
         Args:
             data: 要压缩的数据
-            
+
         Returns:
             压缩后的数据
         """
@@ -294,10 +294,10 @@ class InternalUtils:
     def decompress_data(data: bytes) -> bytes:
         """
         解压数据
-        
+
         Args:
             data: 要解压的数据
-            
+
         Returns:
             解压后的数据
         """
@@ -307,10 +307,10 @@ class InternalUtils:
     def base64_encode(data: str | bytes) -> str:
         """
         Base64编码
-        
+
         Args:
             data: 要编码的数据
-            
+
         Returns:
             Base64编码字符串
         """
@@ -323,10 +323,10 @@ class InternalUtils:
     def base64_decode(data: str) -> bytes:
         """
         Base64解码
-        
+
         Args:
             data: 要解码的Base64字符串
-            
+
         Returns:
             解码后的数据
         """
@@ -337,12 +337,12 @@ class InternalUtils:
                          ensure_ascii: bool = False) -> str:
         """
         序列化为JSON
-        
+
         Args:
             obj: 要序列化的对象
             indent: 缩进空格数
             ensure_ascii: 是否确保ASCII编码
-            
+
         Returns:
             JSON字符串
         """
@@ -352,10 +352,10 @@ class InternalUtils:
     def deserialize_from_json(json_str: str) -> Any:
         """
         从JSON反序列化
-        
+
         Args:
             json_str: JSON字符串
-            
+
         Returns:
             反序列化后的对象
         """
@@ -365,10 +365,10 @@ class InternalUtils:
     def serialize_to_pickle(obj: Any) -> bytes:
         """
         序列化为Pickle
-        
+
         Args:
             obj: 要序列化的对象
-            
+
         Returns:
             Pickle字节串
         """
@@ -378,10 +378,8 @@ class InternalUtils:
     def deserialize_from_pickle(pickle_bytes: bytes) -> Any:
         """
         从Pickle反序列化
-        
         Args:
             pickle_bytes: Pickle字节串
-            
         Returns:
             反序列化后的对象
         """
@@ -391,7 +389,7 @@ class InternalUtils:
     def ensure_dir(directory: str) -> None:
         """
         确保目录存在
-        
+
         Args:
             directory: 目录路径
         """
@@ -402,10 +400,10 @@ class InternalUtils:
     def get_file_extension(file_path: str) -> str:
         """
         获取文件扩展名
-        
+
         Args:
             file_path: 文件路径
-            
+
         Returns:
             文件扩展名（不包含点）
         """
@@ -415,10 +413,10 @@ class InternalUtils:
     def is_file_exists(file_path: str) -> bool:
         """
         检查文件是否存在
-        
+
         Args:
             file_path: 文件路径
-            
+
         Returns:
             文件是否存在
         """
@@ -428,10 +426,10 @@ class InternalUtils:
     def is_dir_exists(directory: str) -> bool:
         """
         检查目录是否存在
-        
+
         Args:
             directory: 目录路径
-            
+
         Returns:
             目录是否存在
         """
@@ -442,12 +440,12 @@ class InternalUtils:
                   recursive: bool = False) -> list[str]:
         """
         列出目录中的文件
-        
+
         Args:
             directory: 目录路径
             pattern: 文件名模式（正则表达式）
             recursive: 是否递归遍历子目录
-            
+
         Returns:
             文件路径列表
         """
@@ -470,11 +468,11 @@ class InternalUtils:
     def read_file(file_path: str, encoding: str = 'utf-8') -> str:
         """
         读取文本文件
-        
+
         Args:
             file_path: 文件路径
             encoding: 文件编码
-            
+
         Returns:
             文件内容
         """
@@ -485,10 +483,10 @@ class InternalUtils:
     def read_binary_file(file_path: str) -> bytes:
         """
         读取二进制文件
-        
+
         Args:
             file_path: 文件路径
-            
+
         Returns:
             文件内容
         """
@@ -499,7 +497,7 @@ class InternalUtils:
     def write_file(file_path: str, content: str, encoding: str = 'utf-8') -> None:
         """
         写入文本文件
-        
+
         Args:
             file_path: 文件路径
             content: 文件内容
@@ -517,7 +515,7 @@ class InternalUtils:
     def write_binary_file(file_path: str, content: bytes) -> None:
         """
         写入二进制文件
-        
+
         Args:
             file_path: 文件路径
             content: 文件内容
@@ -534,7 +532,7 @@ class InternalUtils:
     def append_file(file_path: str, content: str, encoding: str = 'utf-8') -> None:
         """
         追加文本文件
-        
+
         Args:
             file_path: 文件路径
             content: 要追加的内容
@@ -552,7 +550,7 @@ class InternalUtils:
     def copy_file(src_path: str, dst_path: str) -> None:
         """
         复制文件
-        
+
         Args:
             src_path: 源文件路径
             dst_path: 目标文件路径
@@ -568,7 +566,7 @@ class InternalUtils:
     def move_file(src_path: str, dst_path: str) -> None:
         """
         移动文件
-        
+
         Args:
             src_path: 源文件路径
             dst_path: 目标文件路径
@@ -584,10 +582,10 @@ class InternalUtils:
     def delete_file(file_path: str) -> bool:
         """
         删除文件
-        
+
         Args:
             file_path: 文件路径
-            
+
         Returns:
             是否成功删除
         """
@@ -605,13 +603,13 @@ class InternalUtils:
                         dir: str | None = None, text: bool = True) -> tuple[int, str]:
         """
         创建临时文件
-        
+
         Args:
             suffix: 文件后缀
             prefix: 文件前缀
             dir: 临时文件目录
             text: 是否为文本文件
-            
+
         Returns:
             文件描述符和文件路径的元组
         """
@@ -622,12 +620,12 @@ class InternalUtils:
                        dir: str | None = None) -> str:
         """
         创建临时目录
-        
+
         Args:
             suffix: 目录后缀
             prefix: 目录前缀
             dir: 父目录
-            
+
         Returns:
             临时目录路径
         """
@@ -637,10 +635,10 @@ class InternalUtils:
     def get_file_size(file_path: str) -> int:
         """
         获取文件大小
-        
+
         Args:
             file_path: 文件路径
-            
+
         Returns:
             文件大小（字节）
         """
@@ -650,10 +648,10 @@ class InternalUtils:
     def get_file_modification_time(file_path: str) -> float:
         """
         获取文件修改时间
-        
+
         Args:
             file_path: 文件路径
-            
+
         Returns:
             文件修改时间戳
         """
@@ -663,10 +661,10 @@ class InternalUtils:
     def get_file_creation_time(file_path: str) -> float:
         """
         获取文件创建时间
-        
+
         Args:
             file_path: 文件路径
-            
+
         Returns:
             文件创建时间戳
         """
@@ -678,7 +676,7 @@ class InternalUtils:
                        timeout: float | None = None, encoding: str = 'utf-8') -> tuple[int, str, str]:
         """
         执行命令
-        
+
         Args:
             command: 命令字符串或参数列表
             shell: 是否使用shell执行
@@ -686,7 +684,7 @@ class InternalUtils:
             env: 环境变量
             timeout: 超时时间（秒）
             encoding: 输出编码
-            
+
         Returns:
             返回码、标准输出和标准错误的元组
         """
@@ -715,10 +713,10 @@ class InternalUtils:
     def is_module_available(module_name: str) -> bool:
         """
         检查模块是否可用
-        
+
         Args:
             module_name: 模块名称
-            
+
         Returns:
             模块是否可用
         """
@@ -732,10 +730,10 @@ class InternalUtils:
     def import_module(module_name: str) -> Any:
         """
         导入模块
-        
+
         Args:
             module_name: 模块名称
-            
+
         Returns:
             导入的模块
         """
@@ -745,10 +743,10 @@ class InternalUtils:
     def get_function_args(func: Callable) -> list[str]:
         """
         获取函数参数名称
-        
+
         Args:
             func: 函数对象
-            
+
         Returns:
             参数名称列表
         """
@@ -758,10 +756,10 @@ class InternalUtils:
     def get_class_methods(cls: type) -> list[str]:
         """
         获取类的方法名称
-        
+
         Args:
             cls: 类对象
-            
+
         Returns:
             方法名称列表
         """
@@ -771,7 +769,7 @@ class InternalUtils:
     def get_system_info() -> dict[str, Any]:
         """
         获取系统信息
-        
+
         Returns:
             系统信息字典
         """
@@ -797,13 +795,13 @@ class InternalUtils:
              exceptions: tuple[type[Exception], ...] = (Exception,)) -> Callable:
         """
         重试装饰器
-        
+
         Args:
             max_attempts: 最大尝试次数
             delay: 初始延迟时间（秒）
             backoff: 延迟时间的增长因子
             exceptions: 要捕获的异常类型
-            
+
         Returns:
             装饰器函数
         """
@@ -838,10 +836,10 @@ class InternalUtils:
     def timer(name: str | None = None) -> Generator[None, None, None]:
         """
         计时上下文管理器
-        
+
         Args:
             name: 计时器名称
-            
+
         Yields:
             无
         """
@@ -858,11 +856,11 @@ class InternalUtils:
     def chunks(lst: list[T], n: int) -> Generator[list[T], None, None]:
         """
         将列表分块
-        
+
         Args:
             lst: 要分块的列表
             n: 每块的大小
-            
+
         Yields:
             列表分块
         """
@@ -873,10 +871,10 @@ class InternalUtils:
     def flatten(lst: list[list[T]]) -> list[T]:
         """
         扁平化嵌套列表
-        
+
         Args:
             lst: 嵌套列表
-            
+
         Returns:
             扁平化后的列表
         """
@@ -886,11 +884,11 @@ class InternalUtils:
     def group_by(items: list[T], key_func: Callable[[T], Any]) -> dict[Any, list[T]]:
         """
         按键分组
-        
+
         Args:
             items: 项目列表
             key_func: 键函数
-            
+
         Returns:
             分组字典
         """
@@ -906,11 +904,11 @@ class InternalUtils:
     def deep_merge(dict1: dict, dict2: dict) -> dict:
         """
         深度合并字典
-        
+
         Args:
             dict1: 第一个字典
             dict2: 第二个字典
-            
+
         Returns:
             合并后的字典
         """
@@ -928,13 +926,13 @@ class InternalUtils:
     def deep_get(obj: dict, path: str, default: Any = None, separator: str = '.') -> Any:
         """
         从嵌套字典中获取值
-        
+
         Args:
             obj: 字典
             path: 路径，使用分隔符分隔
             default: 默认值
             separator: 路径分隔符
-            
+
         Returns:
             路径对应的值，如果不存在则返回默认值
         """
@@ -952,7 +950,7 @@ class InternalUtils:
     def deep_set(obj: dict, path: str, value: Any, separator: str = '.') -> None:
         """
         设置嵌套字典中的值
-        
+
         Args:
             obj: 字典
             path: 路径，使用分隔符分隔
@@ -973,10 +971,10 @@ class InternalUtils:
     def camel_to_snake(name: str) -> str:
         """
         驼峰命名转蛇形命名
-        
+
         Args:
             name: 驼峰命名字符串
-            
+
         Returns:
             蛇形命名字符串
         """
@@ -987,10 +985,10 @@ class InternalUtils:
     def snake_to_camel(name: str) -> str:
         """
         蛇形命名转驼峰命名
-        
+
         Args:
             name: 蛇形命名字符串
-            
+
         Returns:
             驼峰命名字符串
         """
@@ -1000,12 +998,12 @@ class InternalUtils:
     def truncate_string(s: str, max_length: int, suffix: str = '...') -> str:
         """
         截断字符串
-        
+
         Args:
             s: 字符串
             max_length: 最大长度
             suffix: 后缀
-            
+
         Returns:
             截断后的字符串
         """
@@ -1017,10 +1015,10 @@ class InternalUtils:
     def is_valid_email(email: str) -> bool:
         """
         检查是否为有效的电子邮件地址
-        
+
         Args:
             email: 电子邮件地址
-            
+
         Returns:
             是否有效
         """

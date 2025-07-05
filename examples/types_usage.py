@@ -66,7 +66,7 @@ def audio_config_example():
 
     # 验证规则示例
     try:
-        invalid_config = AudioConfig(sample_rate=10000)  # 不支持的采样率
+        AudioConfig(sample_rate=10000)  # 不支持的采样率
     except Exception as e:
         print(f"验证错误: {str(e)}")
 

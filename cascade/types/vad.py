@@ -46,7 +46,7 @@ class VADBackend(str, Enum):
 class VADConfig(BaseModel):
     """
     VAD处理配置
-    
+
     控制VAD处理行为的所有参数。
     """
     backend: VADBackend = Field(
@@ -173,7 +173,7 @@ class VADConfig(BaseModel):
 class VADResult(BaseModel):
     """
     VAD检测结果
-    
+
     包含语音活动检测的所有相关信息。
     """
     is_speech: bool = Field(

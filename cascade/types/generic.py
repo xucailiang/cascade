@@ -39,7 +39,7 @@ class BufferStrategy(str, Enum):
 class Status(BaseModel):
     """
     系统状态
-    
+
     表示操作或系统的当前状态。
     """
     code: int = Field(
@@ -100,7 +100,7 @@ class Status(BaseModel):
 class PerformanceMetrics(BaseModel):
     """
     性能监控指标
-    
+
     收集和展示系统性能数据。
     """
     # 延迟指标

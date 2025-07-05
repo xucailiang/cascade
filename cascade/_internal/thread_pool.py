@@ -69,7 +69,7 @@ class Task(Generic[R]):
                  task_id: str | None = None):
         """
         初始化任务
-        
+
         Args:
             func: 任务函数
             args: 位置参数
@@ -98,10 +98,10 @@ class Task(Generic[R]):
     def execute(self) -> R:
         """
         执行任务
-        
+
         Returns:
             任务结果
-            
+
         Raises:
             Exception: 任务执行过程中的异常
         """
@@ -167,10 +167,10 @@ class Task(Generic[R]):
     def wait(self, timeout: float | None = None) -> bool:
         """
         等待任务完成
-        
+
         Args:
             timeout: 等待超时时间（秒）
-            
+
         Returns:
             是否在超时前完成
         """
@@ -179,7 +179,7 @@ class Task(Generic[R]):
     def cancel(self) -> bool:
         """
         取消任务
-        
+
         Returns:
             是否成功取消
         """
@@ -204,7 +204,7 @@ class Task(Generic[R]):
     def is_done(self) -> bool:
         """
         检查任务是否已完成（包括成功、失败、取消、超时）
-        
+
         Returns:
             是否已完成
         """
@@ -215,13 +215,13 @@ class Task(Generic[R]):
     def get_result(self, timeout: float | None = None) -> R:
         """
         获取任务结果
-        
+
         Args:
             timeout: 等待超时时间（秒）
-            
+
         Returns:
             任务结果
-            
+
         Raises:
             TimeoutError: 等待超时
             Exception: 任务执行过程中的异常
@@ -284,7 +284,7 @@ class PriorityThreadPoolExecutor(ThreadPoolExecutor):
     def __init__(self, max_workers: int | None = None, thread_name_prefix: str = ""):
         """
         初始化优先级线程池执行器
-        
+
         Args:
             max_workers: 最大工作线程数
             thread_name_prefix: 线程名称前缀
@@ -296,13 +296,13 @@ class PriorityThreadPoolExecutor(ThreadPoolExecutor):
     def submit(self, fn, *args, priority=TaskPriority.NORMAL, **kwargs):
         """
         提交任务到线程池
-        
+
         Args:
             fn: 任务函数
             *args: 位置参数
             priority: 任务优先级
             **kwargs: 关键字参数
-            
+
         Returns:
             Future对象
         """
@@ -319,7 +319,7 @@ class PriorityThreadPoolExecutor(ThreadPoolExecutor):
     def _adjust_thread_count(self):
         """
         调整线程数量
-        
+
         重写父类方法，以支持我们的_PriorityWorkItem类
         """
         # 如果工作队列中有任务，并且线程数量小于最大线程数，则创建新线程
@@ -334,7 +334,7 @@ class PriorityThreadPoolExecutor(ThreadPoolExecutor):
     def _worker(self):
         """
         工作线程函数
-        
+
         重写父类方法，以支持我们的_PriorityWorkItem类
         """
         while True:
@@ -359,7 +359,7 @@ class ThreadPoolManager:
     def get_instance(cls) -> 'ThreadPoolManager':
         """
         获取单例实例
-        
+
         Returns:
             线程池管理器实例
         """
@@ -410,12 +410,12 @@ class ThreadPoolManager:
                    thread_name_prefix: str | None = None) -> PriorityThreadPoolExecutor:
         """
         创建自定义线程池
-        
+
         Args:
             name: 线程池名称
             max_workers: 最大工作线程数
             thread_name_prefix: 线程名称前缀
-            
+
         Returns:
             线程池执行器
         """
@@ -439,10 +439,10 @@ class ThreadPoolManager:
     def get_pool(self, name: str) -> PriorityThreadPoolExecutor | None:
         """
         获取自定义线程池
-        
+
         Args:
             name: 线程池名称
-            
+
         Returns:
             线程池执行器，如果不存在则返回None
         """
@@ -451,10 +451,10 @@ class ThreadPoolManager:
     def remove_pool(self, name: str) -> bool:
         """
         移除自定义线程池
-        
+
         Args:
             name: 线程池名称
-            
+
         Returns:
             是否成功移除
         """
@@ -469,7 +469,7 @@ class ThreadPoolManager:
                    pool_type: str = "default", task_id: str | None = None) -> Task[R]:
         """
         提交任务
-        
+
         Args:
             func: 任务函数
             args: 位置参数
@@ -478,7 +478,7 @@ class ThreadPoolManager:
             timeout: 超时时间（秒）
             pool_type: 线程池类型，可选值：default, io, compute, 或自定义线程池名称
             task_id: 任务ID，如果不提供则自动生成
-            
+
         Returns:
             任务对象
         """
@@ -537,7 +537,7 @@ class ThreadPoolManager:
                     timeout: float | None = None, pool_type: str = "default") -> list[Task]:
         """
         批量提交任务
-        
+
         Args:
             funcs: 任务函数列表
             args_list: 位置参数列表，如果不提供则使用空元组
@@ -545,7 +545,7 @@ class ThreadPoolManager:
             priority: 任务优先级
             timeout: 超时时间（秒）
             pool_type: 线程池类型
-            
+
         Returns:
             任务对象列表
         """
@@ -558,7 +558,7 @@ class ThreadPoolManager:
             raise ValueError("函数列表、参数列表和关键字参数列表长度必须相同")
 
         tasks = []
-        for i, (func, args, kwargs) in enumerate(zip(funcs, args_list, kwargs_list, strict=False)):
+        for _i, (func, args, kwargs) in enumerate(zip(funcs, args_list, kwargs_list, strict=False)):
             task = self.submit_task(func, args, kwargs, priority, timeout, pool_type)
             tasks.append(task)
 
@@ -569,7 +569,7 @@ class ThreadPoolManager:
            chunksize: int = 1) -> list[R]:
         """
         映射函数到项目列表
-        
+
         Args:
             func: 映射函数
             items: 项目列表
@@ -577,7 +577,7 @@ class ThreadPoolManager:
             priority: 任务优先级
             pool_type: 线程池类型
             chunksize: 分块大小
-            
+
         Returns:
             结果列表
         """
@@ -602,10 +602,10 @@ class ThreadPoolManager:
     def get_task(self, task_id: str) -> Task | None:
         """
         获取任务
-        
+
         Args:
             task_id: 任务ID
-            
+
         Returns:
             任务对象，如果不存在则返回None
         """
@@ -614,10 +614,10 @@ class ThreadPoolManager:
     def cancel_task(self, task_id: str) -> bool:
         """
         取消任务
-        
+
         Args:
             task_id: 任务ID
-            
+
         Returns:
             是否成功取消
         """
@@ -635,12 +635,12 @@ class ThreadPoolManager:
                       return_when: str = "ALL_COMPLETED") -> dict[str, TaskStatus]:
         """
         等待任务完成
-        
+
         Args:
             task_ids: 任务ID列表
             timeout: 等待超时时间（秒）
             return_when: 返回条件，可选值：ALL_COMPLETED, FIRST_COMPLETED, FIRST_EXCEPTION
-            
+
         Returns:
             任务ID到任务状态的映射
         """
@@ -682,7 +682,7 @@ class ThreadPoolManager:
     def get_stats(self) -> dict[str, Any]:
         """
         获取线程池统计信息
-        
+
         Returns:
             统计信息字典
         """
@@ -721,7 +721,7 @@ class ThreadPoolManager:
     def shutdown(self, wait: bool = True) -> None:
         """
         关闭线程池管理器
-        
+
         Args:
             wait: 是否等待所有任务完成
         """
@@ -733,7 +733,7 @@ class ThreadPoolManager:
             self.io_pool.shutdown(wait=wait)
             self.compute_pool.shutdown(wait=wait)
 
-            for name, pool in self.custom_pools.items():
+            for _name, pool in self.custom_pools.items():
                 pool.shutdown(wait=wait)
 
             logger.info("线程池管理器已关闭")
