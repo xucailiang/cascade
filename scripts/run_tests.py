@@ -9,10 +9,9 @@
 - 生成覆盖率报告
 """
 
-import os
-import sys
 import argparse
 import subprocess
+import sys
 from pathlib import Path
 
 # 添加项目根目录到Python路径
@@ -24,15 +23,15 @@ def run_tests(module=None, mark=None, coverage=True, verbose=False):
     """运行测试"""
     # 构建命令
     cmd = ["pytest"]
-    
+
     # 添加模块
     if module:
         cmd.append(f"tests/{module}")
-    
+
     # 添加标记
     if mark:
         cmd.append(f"-m {mark}")
-    
+
     # 添加覆盖率
     if coverage:
         cmd.extend([
@@ -41,15 +40,15 @@ def run_tests(module=None, mark=None, coverage=True, verbose=False):
             "--cov-report=html:htmlcov",
             "--cov-report=xml"
         ])
-    
+
     # 添加详细输出
     if verbose:
         cmd.append("-v")
-    
+
     # 运行命令
     print(f"运行命令: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=ROOT_DIR)
-    
+    result = subprocess.run(cmd, check=False, cwd=ROOT_DIR)
+
     return result.returncode
 
 
@@ -76,9 +75,9 @@ def main():
         help="详细输出",
         action="store_true"
     )
-    
+
     args = parser.parse_args()
-    
+
     # 运行测试
     return run_tests(
         module=args.module,

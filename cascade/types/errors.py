@@ -11,26 +11,27 @@
 - ModelLoadError: 模型加载错误
 """
 
-from typing import Optional, Dict, Any
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
+
 from .generic import ErrorCode, ErrorSeverity
 
 
 class PreVADError(Exception):
     """Cascade错误基类"""
-    def __init__(self, 
+    def __init__(self,
                  message: str,
                  error_code: ErrorCode = ErrorCode.UNKNOWN_ERROR,
                  severity: ErrorSeverity = ErrorSeverity.MEDIUM,
-                 context: Optional[Dict[str, Any]] = None):
+                 context: dict[str, Any] | None = None):
         super().__init__(message)
         self.message = message
         self.error_code = error_code
         self.severity = severity
         self.context = context or {}
-        self.timestamp = datetime.now(timezone.utc)
-    
-    def to_dict(self) -> Dict[str, Any]:
+        self.timestamp = datetime.now(UTC)
+
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典"""
         return {
             "message": self.message,
@@ -43,7 +44,7 @@ class PreVADError(Exception):
 
 class AudioFormatError(PreVADError):
     """音频格式错误"""
-    def __init__(self, message: str, format_info: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, format_info: dict[str, Any] | None = None):
         super().__init__(
             message,
             ErrorCode.UNSUPPORTED_FORMAT,
@@ -108,7 +109,7 @@ class BackendUnavailableError(VADProcessingError):
 
 class InferenceError(VADProcessingError):
     """推理错误"""
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
             message,
             ErrorCode.INFERENCE_FAILED,
@@ -119,11 +120,11 @@ class InferenceError(VADProcessingError):
 
 class ConfigurationError(PreVADError):
     """配置错误"""
-    def __init__(self, message: str, config_name: str, details: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, config_name: str, details: dict[str, Any] | None = None):
         context = {"config_name": config_name}
         if details:
             context.update(details)
-        
+
         super().__init__(
             message,
             ErrorCode.INVALID_CONFIG,

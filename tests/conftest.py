@@ -6,9 +6,9 @@ Pytest配置文件
 
 import os
 import sys
-import pytest
+
 import numpy as np
-from typing import Dict, Any, List, Optional
+import pytest
 
 # 确保cascade包可以被导入
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -32,7 +32,7 @@ def sample_audio_data():
 def sample_vad_config():
     """生成用于测试的VAD配置"""
     from cascade.types import VADConfig
-    
+
     return VADConfig(
         backend="onnx",
         workers=2,
@@ -49,7 +49,7 @@ def sample_vad_config():
 def sample_audio_config():
     """生成用于测试的音频配置"""
     from cascade.types import AudioConfig
-    
+
     return AudioConfig(
         sample_rate=16000,
         format="wav",
@@ -62,11 +62,10 @@ def sample_audio_config():
 def temp_audio_file(tmp_path, sample_audio_data):
     """创建临时音频文件用于测试"""
     import wave
-    import struct
-    
+
     data, sample_rate = sample_audio_data
     file_path = tmp_path / "test_audio.wav"
-    
+
     with wave.open(str(file_path), 'wb') as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)  # 16-bit
@@ -74,7 +73,7 @@ def temp_audio_file(tmp_path, sample_audio_data):
         # 将float32转换为int16
         data_int16 = (data * 32767).astype(np.int16)
         wf.writeframes(data_int16.tobytes())
-    
+
     return file_path
 
 
@@ -119,7 +118,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
             cov.load()
             total_coverage = cov.report(show_missing=False)
             terminalreporter.write_line(f"总覆盖率: {total_coverage:.2f}%")
-            
+
             # 显示各模块覆盖率
             terminalreporter.write_sep("-", "模块覆盖率")
             for module in ["types", "buffer", "formats", "processor", "backends"]:

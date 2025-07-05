@@ -10,10 +10,11 @@ VAD相关类型定义
 - VADSegment: VAD语音段
 """
 
-from typing import Optional, Dict, Any, List
-from enum import Enum
 import os
-from pydantic import BaseModel, Field, validator, root_validator
+from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, Field, root_validator, validator
 
 
 class ProcessingMode(str, Enum):
@@ -35,7 +36,7 @@ class VADBackend(str, Enum):
     """支持的VAD后端"""
     ONNX = "onnx"
     VLLM = "vllm"
-    
+
     @classmethod
     def get_default_backend(cls) -> str:
         """获取默认后端"""
@@ -90,7 +91,7 @@ class VADConfig(BaseModel):
         default=OptimizationLevel.ALL,
         description="优化级别"
     )
-    
+
     # 高级参数
     min_speech_duration_ms: int = Field(
         default=100,
@@ -102,7 +103,7 @@ class VADConfig(BaseModel):
         description="最大静音段时长（毫秒）",
         ge=50
     )
-    energy_threshold: Optional[float] = Field(
+    energy_threshold: float | None = Field(
         default=None,
         description="能量阈值",
         ge=0.0
@@ -113,7 +114,7 @@ class VADConfig(BaseModel):
         ge=10,
         le=200
     )
-    
+
     @validator('overlap_ms')
     def validate_overlap(cls, v, values):
         """验证重叠时长"""
@@ -121,7 +122,7 @@ class VADConfig(BaseModel):
         if v >= chunk_duration * 0.5:
             raise ValueError('重叠时长不能超过块时长的50%')
         return v
-    
+
     @validator('workers')
     def validate_workers(cls, v):
         """验证工作线程数"""
@@ -129,30 +130,30 @@ class VADConfig(BaseModel):
         if v > max_workers:
             raise ValueError(f'工作线程数不能超过 {max_workers}')
         return v
-    
+
     @root_validator(skip_on_failure=True)
     def validate_timing_consistency(cls, values):
         """验证时间参数一致性"""
         chunk_duration = values.get('chunk_duration_ms', 500)
         min_speech = values.get('min_speech_duration_ms', 100)
         max_silence = values.get('max_silence_duration_ms', 500)
-        
+
         if min_speech > chunk_duration:
             raise ValueError('最小语音段时长不能超过块时长')
-        
+
         if max_silence > chunk_duration * 2:
             raise ValueError('最大静音段时长过长')
-        
+
         return values
-    
+
     def get_chunk_samples(self, sample_rate: int) -> int:
         """计算块样本数"""
         return int(self.chunk_duration_ms * sample_rate / 1000)
-    
+
     def get_overlap_samples(self, sample_rate: int) -> int:
         """计算重叠样本数"""
         return int(self.overlap_ms * sample_rate / 1000)
-    
+
     class Config:
         extra = "forbid"
         use_enum_values = True
@@ -201,24 +202,24 @@ class VADResult(BaseModel):
         ge=0.0,
         le=1.0
     )
-    energy_level: Optional[float] = Field(
+    energy_level: float | None = Field(
         default=None,
         description="能量级别",
         ge=0.0
     )
-    snr_db: Optional[float] = Field(
+    snr_db: float | None = Field(
         default=None,
         description="信噪比（dB）"
     )
-    speech_type: Optional[str] = Field(
+    speech_type: str | None = Field(
         default=None,
         description="语音类型（如：male, female, child）"
     )
-    metadata: Optional[Dict[str, Any]] = Field(
+    metadata: dict[str, Any] | None = Field(
         default=None,
         description="附加元数据"
     )
-    
+
     @validator('end_ms')
     def validate_time_order(cls, v, values):
         """验证时间顺序"""
@@ -226,19 +227,19 @@ class VADResult(BaseModel):
         if start_ms is not None and v <= start_ms:
             raise ValueError('结束时间必须大于开始时间')
         return v
-    
+
     def get_duration_ms(self) -> float:
         """获取时长（毫秒）"""
         return self.end_ms - self.start_ms
-    
+
     def get_speech_ratio(self) -> float:
         """获取语音比例（用于统计）"""
         return self.probability if self.is_speech else 0.0
-    
+
     def is_high_confidence(self, threshold: float = 0.8) -> bool:
         """判断是否为高置信度检测"""
         return self.confidence >= threshold
-    
+
     class Config:
         extra = "allow"
         schema_extra = {
@@ -262,15 +263,15 @@ class VADSegment(BaseModel):
     confidence: float = Field(description="平均置信度", ge=0.0, le=1.0)
     peak_probability: float = Field(description="峰值概率", ge=0.0, le=1.0)
     chunk_count: int = Field(description="包含的块数", ge=1)
-    energy_stats: Optional[Dict[str, float]] = Field(default=None, description="能量统计")
-    
+    energy_stats: dict[str, float] | None = Field(default=None, description="能量统计")
+
     @validator('end_ms')
     def validate_duration(cls, v, values):
         start_ms = values.get('start_ms')
         if start_ms is not None and v <= start_ms:
             raise ValueError('结束时间必须大于开始时间')
         return v
-    
+
     def get_duration_ms(self) -> float:
         """获取段时长"""
         return self.end_ms - self.start_ms

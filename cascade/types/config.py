@@ -7,7 +7,7 @@
 - VLLMConfig: VLLM后端配置
 """
 
-from typing import List, Optional
+
 from pydantic import BaseModel, Field, validator
 
 from .vad import OptimizationLevel
@@ -15,7 +15,7 @@ from .vad import OptimizationLevel
 
 class BackendConfig(BaseModel):
     """VAD后端配置基类"""
-    model_path: Optional[str] = Field(
+    model_path: str | None = Field(
         default=None,
         description="模型文件路径"
     )
@@ -39,14 +39,14 @@ class BackendConfig(BaseModel):
         ge=0,
         le=10
     )
-    
+
     class Config:
         extra = "allow"  # 允许后端特定配置
 
 
 class ONNXConfig(BackendConfig):
     """ONNX后端配置"""
-    providers: List[str] = Field(
+    providers: list[str] = Field(
         default=["CPUExecutionProvider"],
         description="执行提供者列表"
     )
@@ -70,13 +70,13 @@ class ONNXConfig(BackendConfig):
         default="all",
         description="图优化级别"
     )
-    
+
     @validator('providers')
     def validate_providers(cls, v):
         """验证执行提供者"""
         valid_providers = [
             "CPUExecutionProvider",
-            "CUDAExecutionProvider", 
+            "CUDAExecutionProvider",
             "TensorrtExecutionProvider",
             "OpenVINOExecutionProvider"
         ]
@@ -84,7 +84,7 @@ class ONNXConfig(BackendConfig):
             if provider not in valid_providers:
                 raise ValueError(f'无效的执行提供者: {provider}')
         return v
-    
+
     class Config:
         schema_extra = {
             "examples": [
@@ -127,7 +127,7 @@ class VLLMConfig(BackendConfig):
         default="auto",
         description="数据类型"
     )
-    
+
     @validator('dtype')
     def validate_dtype(cls, v):
         """验证数据类型"""

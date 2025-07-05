@@ -4,19 +4,21 @@
 本模块提供性能监控和统计功能，用于跟踪系统资源使用情况和性能指标。
 """
 
-import time
-import threading
+import json
+import logging
 import os
 import platform
-import psutil
-from typing import Dict, List, Optional, Callable, Any, Tuple, Set, Union
-from datetime import datetime, timedelta
-import logging
-import json
 import statistics
+import threading
+import time
+from collections.abc import Callable
+from datetime import datetime
 from functools import wraps
+from typing import Any
 
-from .atomic import AtomicDict, AtomicCounter, AtomicValue, AtomicReference
+import psutil
+
+from .atomic import AtomicCounter, AtomicDict, AtomicReference, AtomicValue
 
 # 配置日志
 logger = logging.getLogger("cascade.performance")
@@ -24,7 +26,7 @@ logger = logging.getLogger("cascade.performance")
 
 class PerformanceMetric:
     """性能指标基类"""
-    
+
     def __init__(self, name: str, description: str = ""):
         """
         初始化性能指标
@@ -36,8 +38,8 @@ class PerformanceMetric:
         self.name = name
         self.description = description
         self.created_at = datetime.now()
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """
         转换为字典
         
@@ -54,7 +56,7 @@ class PerformanceMetric:
 
 class CounterMetric(PerformanceMetric):
     """计数器指标"""
-    
+
     def __init__(self, name: str, description: str = ""):
         """
         初始化计数器指标
@@ -65,7 +67,7 @@ class CounterMetric(PerformanceMetric):
         """
         super().__init__(name, description)
         self.counter = AtomicCounter(0)
-    
+
     def increment(self, delta: int = 1) -> int:
         """
         增加计数
@@ -77,7 +79,7 @@ class CounterMetric(PerformanceMetric):
             增加后的计数
         """
         return self.counter.increment(delta)
-    
+
     def decrement(self, delta: int = 1) -> int:
         """
         减少计数
@@ -89,7 +91,7 @@ class CounterMetric(PerformanceMetric):
             减少后的计数
         """
         return self.counter.decrement(delta)
-    
+
     def get(self) -> int:
         """
         获取当前计数
@@ -98,12 +100,12 @@ class CounterMetric(PerformanceMetric):
             当前计数
         """
         return self.counter.get()
-    
+
     def reset(self) -> None:
         """重置计数为0"""
         self.counter.reset()
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """
         转换为字典
         
@@ -117,7 +119,7 @@ class CounterMetric(PerformanceMetric):
 
 class GaugeMetric(PerformanceMetric):
     """仪表盘指标，表示可变的数值"""
-    
+
     def __init__(self, name: str, description: str = "", initial_value: float = 0.0):
         """
         初始化仪表盘指标
@@ -129,7 +131,7 @@ class GaugeMetric(PerformanceMetric):
         """
         super().__init__(name, description)
         self.value = AtomicValue(initial_value)
-    
+
     def set(self, value: float) -> None:
         """
         设置值
@@ -138,7 +140,7 @@ class GaugeMetric(PerformanceMetric):
             value: 新值
         """
         self.value.set(value)
-    
+
     def get(self) -> float:
         """
         获取当前值
@@ -147,8 +149,8 @@ class GaugeMetric(PerformanceMetric):
             当前值
         """
         return self.value.get()
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """
         转换为字典
         
@@ -162,7 +164,7 @@ class GaugeMetric(PerformanceMetric):
 
 class HistogramMetric(PerformanceMetric):
     """直方图指标，用于统计数值分布"""
-    
+
     def __init__(self, name: str, description: str = ""):
         """
         初始化直方图指标
@@ -174,7 +176,7 @@ class HistogramMetric(PerformanceMetric):
         super().__init__(name, description)
         self.values = []
         self._lock = threading.RLock()
-    
+
     def record(self, value: float) -> None:
         """
         记录值
@@ -184,7 +186,7 @@ class HistogramMetric(PerformanceMetric):
         """
         with self._lock:
             self.values.append(value)
-    
+
     def count(self) -> int:
         """
         获取记录的值的数量
@@ -194,7 +196,7 @@ class HistogramMetric(PerformanceMetric):
         """
         with self._lock:
             return len(self.values)
-    
+
     def sum(self) -> float:
         """
         获取记录的值的总和
@@ -204,8 +206,8 @@ class HistogramMetric(PerformanceMetric):
         """
         with self._lock:
             return sum(self.values)
-    
-    def average(self) -> Optional[float]:
+
+    def average(self) -> float | None:
         """
         获取记录的值的平均值
         
@@ -216,8 +218,8 @@ class HistogramMetric(PerformanceMetric):
             if not self.values:
                 return None
             return sum(self.values) / len(self.values)
-    
-    def min(self) -> Optional[float]:
+
+    def min(self) -> float | None:
         """
         获取记录的值的最小值
         
@@ -228,8 +230,8 @@ class HistogramMetric(PerformanceMetric):
             if not self.values:
                 return None
             return min(self.values)
-    
-    def max(self) -> Optional[float]:
+
+    def max(self) -> float | None:
         """
         获取记录的值的最大值
         
@@ -240,8 +242,8 @@ class HistogramMetric(PerformanceMetric):
             if not self.values:
                 return None
             return max(self.values)
-    
-    def median(self) -> Optional[float]:
+
+    def median(self) -> float | None:
         """
         获取记录的值的中位数
         
@@ -252,8 +254,8 @@ class HistogramMetric(PerformanceMetric):
             if not self.values:
                 return None
             return statistics.median(self.values)
-    
-    def percentile(self, p: float) -> Optional[float]:
+
+    def percentile(self, p: float) -> float | None:
         """
         获取记录的值的百分位数
         
@@ -273,13 +275,13 @@ class HistogramMetric(PerformanceMetric):
             if f == c:
                 return sorted_values[f]
             return sorted_values[f] * (c - k) + sorted_values[c] * (k - f)
-    
+
     def reset(self) -> None:
         """清空记录的值"""
         with self._lock:
             self.values.clear()
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """
         转换为字典
         
@@ -304,7 +306,7 @@ class HistogramMetric(PerformanceMetric):
 
 class TimerMetric(PerformanceMetric):
     """计时器指标，用于测量操作耗时"""
-    
+
     def __init__(self, name: str, description: str = ""):
         """
         初始化计时器指标
@@ -317,12 +319,12 @@ class TimerMetric(PerformanceMetric):
         self.histogram = HistogramMetric(f"{name}_histogram", f"Histogram for {name}")
         self.active_timers = AtomicCounter(0)
         self._thread_local = threading.local()
-    
+
     def start(self) -> None:
         """开始计时"""
         self._thread_local.start_time = time.time()
         self.active_timers.increment()
-    
+
     def stop(self) -> float:
         """
         停止计时并记录耗时
@@ -332,13 +334,13 @@ class TimerMetric(PerformanceMetric):
         """
         if not hasattr(self._thread_local, "start_time"):
             raise RuntimeError("计时器未启动")
-        
+
         elapsed = time.time() - self._thread_local.start_time
         self.histogram.record(elapsed)
         self.active_timers.decrement()
         delattr(self._thread_local, "start_time")
         return elapsed
-    
+
     def time(self) -> 'TimerContext':
         """
         获取计时器上下文
@@ -347,7 +349,7 @@ class TimerMetric(PerformanceMetric):
             计时器上下文
         """
         return TimerContext(self)
-    
+
     def get_active_count(self) -> int:
         """
         获取活动计时器数量
@@ -356,13 +358,13 @@ class TimerMetric(PerformanceMetric):
             活动计时器数量
         """
         return self.active_timers.get()
-    
+
     def reset(self) -> None:
         """重置计时器"""
         self.histogram.reset()
         self.active_timers.reset()
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """
         转换为字典
         
@@ -379,7 +381,7 @@ class TimerMetric(PerformanceMetric):
 
 class TimerContext:
     """计时器上下文，用于with语句"""
-    
+
     def __init__(self, timer: TimerMetric):
         """
         初始化计时器上下文
@@ -388,12 +390,12 @@ class TimerContext:
             timer: 计时器指标
         """
         self.timer = timer
-    
+
     def __enter__(self) -> 'TimerContext':
         """进入上下文"""
         self.timer.start()
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """退出上下文"""
         self.timer.stop()
@@ -415,7 +417,7 @@ def timed(timer_name: str, description: str = "") -> Callable:
         def wrapper(*args, **kwargs):
             # 获取或创建计时器
             timer = PerformanceMonitor.get_instance().get_or_create_timer(timer_name, description)
-            
+
             # 开始计时
             timer.start()
             try:
@@ -432,12 +434,12 @@ def timed(timer_name: str, description: str = "") -> Callable:
 
 class SystemMetrics:
     """系统指标收集器"""
-    
+
     def __init__(self):
         """初始化系统指标收集器"""
         self.process = psutil.Process(os.getpid())
-    
-    def collect(self) -> Dict[str, Any]:
+
+    def collect(self) -> dict[str, Any]:
         """
         收集系统指标
         
@@ -447,20 +449,20 @@ class SystemMetrics:
         # 获取CPU信息
         cpu_percent = psutil.cpu_percent(interval=0.1)
         process_cpu_percent = self.process.cpu_percent(interval=0.1)
-        
+
         # 获取内存信息
         memory = psutil.virtual_memory()
         process_memory = self.process.memory_info()
-        
+
         # 获取磁盘信息
         disk = psutil.disk_usage('/')
-        
+
         # 获取网络信息
         net_io = psutil.net_io_counters()
-        
+
         # 获取线程信息
         thread_count = threading.active_count()
-        
+
         return {
             "timestamp": datetime.now().isoformat(),
             "system": {
@@ -516,10 +518,10 @@ class SystemMetrics:
 
 class PerformanceMonitor:
     """性能监控器"""
-    
+
     _instance = None
     _lock = threading.RLock()
-    
+
     @classmethod
     def get_instance(cls) -> 'PerformanceMonitor':
         """
@@ -532,23 +534,23 @@ class PerformanceMonitor:
             if cls._instance is None:
                 cls._instance = cls()
             return cls._instance
-    
+
     def __init__(self):
         """初始化性能监控器"""
         self.counters = AtomicDict[CounterMetric]()
         self.gauges = AtomicDict[GaugeMetric]()
         self.histograms = AtomicDict[HistogramMetric]()
         self.timers = AtomicDict[TimerMetric]()
-        
+
         self.system_metrics = SystemMetrics()
         self.system_metrics_history = []
         self.max_history_size = 100
-        
+
         self.collection_interval = 60  # 默认收集间隔（秒）
         self.is_collecting = AtomicValue(False)
         self.collection_thread = None
         self.last_collection_time = AtomicReference[datetime](None)
-    
+
     def get_or_create_counter(self, name: str, description: str = "") -> CounterMetric:
         """
         获取或创建计数器指标
@@ -565,7 +567,7 @@ class PerformanceMonitor:
             counter = CounterMetric(name, description)
             self.counters.set(name, counter)
         return counter
-    
+
     def get_or_create_gauge(self, name: str, description: str = "", initial_value: float = 0.0) -> GaugeMetric:
         """
         获取或创建仪表盘指标
@@ -583,7 +585,7 @@ class PerformanceMonitor:
             gauge = GaugeMetric(name, description, initial_value)
             self.gauges.set(name, gauge)
         return gauge
-    
+
     def get_or_create_histogram(self, name: str, description: str = "") -> HistogramMetric:
         """
         获取或创建直方图指标
@@ -600,7 +602,7 @@ class PerformanceMonitor:
             histogram = HistogramMetric(name, description)
             self.histograms.set(name, histogram)
         return histogram
-    
+
     def get_or_create_timer(self, name: str, description: str = "") -> TimerMetric:
         """
         获取或创建计时器指标
@@ -617,8 +619,8 @@ class PerformanceMonitor:
             timer = TimerMetric(name, description)
             self.timers.set(name, timer)
         return timer
-    
-    def collect_system_metrics(self) -> Dict[str, Any]:
+
+    def collect_system_metrics(self) -> dict[str, Any]:
         """
         收集系统指标
         
@@ -626,16 +628,16 @@ class PerformanceMonitor:
             系统指标字典
         """
         metrics = self.system_metrics.collect()
-        
+
         # 保存到历史记录
         self.system_metrics_history.append(metrics)
         if len(self.system_metrics_history) > self.max_history_size:
             self.system_metrics_history.pop(0)
-        
+
         self.last_collection_time.set(datetime.now())
-        
+
         return metrics
-    
+
     def start_collection(self, interval: int = 60) -> None:
         """
         开始定期收集系统指标
@@ -646,44 +648,44 @@ class PerformanceMonitor:
         if self.is_collecting.get():
             logger.warning("性能指标收集已经在运行")
             return
-        
+
         self.collection_interval = interval
         self.is_collecting.set(True)
-        
+
         def collection_task():
             while self.is_collecting.get():
                 try:
                     self.collect_system_metrics()
                 except Exception as e:
                     logger.error(f"收集系统指标时出错: {e}")
-                
+
                 # 等待下一次收集
                 time.sleep(self.collection_interval)
-        
+
         self.collection_thread = threading.Thread(
             target=collection_task,
             name="PerformanceMetricsCollector",
             daemon=True
         )
         self.collection_thread.start()
-        
+
         logger.info(f"性能指标收集已启动，间隔: {interval}秒")
-    
+
     def stop_collection(self) -> None:
         """停止定期收集系统指标"""
         if not self.is_collecting.get():
             logger.warning("性能指标收集未运行")
             return
-        
+
         self.is_collecting.set(False)
-        
+
         if self.collection_thread and self.collection_thread.is_alive():
             self.collection_thread.join(timeout=1.0)
-        
+
         self.collection_thread = None
         logger.info("性能指标收集已停止")
-    
-    def get_all_metrics(self) -> Dict[str, Any]:
+
+    def get_all_metrics(self) -> dict[str, Any]:
         """
         获取所有指标
         
@@ -697,51 +699,51 @@ class PerformanceMonitor:
             "histograms": {},
             "timers": {}
         }
-        
+
         # 收集计数器指标
         for name, counter in self.counters.items():
             result["counters"][name] = counter.to_dict()
-        
+
         # 收集仪表盘指标
         for name, gauge in self.gauges.items():
             result["gauges"][name] = gauge.to_dict()
-        
+
         # 收集直方图指标
         for name, histogram in self.histograms.items():
             result["histograms"][name] = histogram.to_dict()
-        
+
         # 收集计时器指标
         for name, timer in self.timers.items():
             result["timers"][name] = timer.to_dict()
-        
+
         # 添加最新的系统指标
         if self.system_metrics_history:
             result["system"] = self.system_metrics_history[-1]
         else:
             result["system"] = self.collect_system_metrics()
-        
+
         return result
-    
+
     def reset_all_metrics(self) -> None:
         """重置所有指标"""
         # 重置计数器指标
         for counter in self.counters.values():
             counter.reset()
-        
+
         # 重置直方图指标
         for histogram in self.histograms.values():
             histogram.reset()
-        
+
         # 重置计时器指标
         for timer in self.timers.values():
             timer.reset()
-        
+
         # 清空系统指标历史
         self.system_metrics_history.clear()
-        
+
         logger.info("所有性能指标已重置")
-    
-    def export_metrics_json(self, file_path: Optional[str] = None) -> str:
+
+    def export_metrics_json(self, file_path: str | None = None) -> str:
         """
         导出指标为JSON
         
@@ -753,12 +755,12 @@ class PerformanceMonitor:
         """
         metrics = self.get_all_metrics()
         json_str = json.dumps(metrics, indent=2)
-        
+
         if file_path:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(json_str)
             logger.info(f"性能指标已导出到: {file_path}")
-        
+
         return json_str
 
 

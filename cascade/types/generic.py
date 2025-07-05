@@ -13,9 +13,10 @@
 - ErrorInfo: 错误信息
 """
 
-from typing import Optional, Dict, Any, List, Literal
+from datetime import UTC, datetime
 from enum import Enum
-from datetime import datetime, timezone
+from typing import Any, Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -55,23 +56,23 @@ class Status(BaseModel):
     )
     timestamp: datetime = Field(
         description="时间戳",
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(UTC)
     )
-    details: Optional[Dict[str, Any]] = Field(
+    details: dict[str, Any] | None = Field(
         description="详细信息",
         default=None
     )
-    
+
     def is_ok(self) -> bool:
         """检查状态是否正常"""
         return self.success and self.code == 0
-    
+
     def is_error(self) -> bool:
         """检查状态是否为错误"""
         return not self.success or self.code != 0
-    
+
     @classmethod
-    def ok(cls, message: str = "OK", details: Optional[Dict[str, Any]] = None) -> 'Status':
+    def ok(cls, message: str = "OK", details: dict[str, Any] | None = None) -> 'Status':
         """创建成功状态"""
         return cls(
             code=0,
@@ -79,9 +80,9 @@ class Status(BaseModel):
             success=True,
             details=details
         )
-    
+
     @classmethod
-    def error(cls, code: int, message: str, details: Optional[Dict[str, Any]] = None) -> 'Status':
+    def error(cls, code: int, message: str, details: dict[str, Any] | None = None) -> 'Status':
         """创建错误状态"""
         return cls(
             code=code,
@@ -89,7 +90,7 @@ class Status(BaseModel):
             success=False,
             details=details
         )
-    
+
     class Config:
         json_encoders = {
             datetime: lambda v: v.isoformat()
@@ -123,7 +124,7 @@ class PerformanceMetrics(BaseModel):
         description="最大延迟（毫秒）",
         ge=0.0
     )
-    
+
     # 吞吐量指标
     throughput_qps: float = Field(
         description="吞吐量（QPS）",
@@ -133,7 +134,7 @@ class PerformanceMetrics(BaseModel):
         description="数据吞吐量（MB/s）",
         ge=0.0
     )
-    
+
     # 错误指标
     error_rate: float = Field(
         description="错误率",
@@ -148,7 +149,7 @@ class PerformanceMetrics(BaseModel):
         description="错误次数",
         ge=0
     )
-    
+
     # 资源指标
     memory_usage_mb: float = Field(
         description="内存使用量（MB）",
@@ -167,7 +168,7 @@ class PerformanceMetrics(BaseModel):
         description="队列深度",
         ge=0
     )
-    
+
     # 缓冲区指标
     buffer_utilization: float = Field(
         description="缓冲区利用率",
@@ -184,27 +185,27 @@ class PerformanceMetrics(BaseModel):
         ge=0.0,
         le=1.0
     )
-    
+
     # 时间戳
     measurement_time: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="测量时间"
     )
     collection_duration_seconds: float = Field(
         description="收集时长（秒）",
         gt=0.0
     )
-    
+
     def get_total_operations(self) -> int:
         """获取总操作数"""
         return self.success_count + self.error_count
-    
+
     def get_success_rate(self) -> float:
         """获取成功率"""
         total = self.get_total_operations()
         return self.success_count / total if total > 0 else 0.0
-    
-    def is_healthy(self, 
+
+    def is_healthy(self,
                    max_error_rate: float = 0.01,
                    min_throughput: float = 1.0,
                    max_latency_p99: float = 100.0) -> bool:
@@ -212,7 +213,7 @@ class PerformanceMetrics(BaseModel):
         return (self.error_rate <= max_error_rate and
                 self.throughput_qps >= min_throughput and
                 self.p99_latency_ms <= max_latency_p99)
-    
+
     class Config:
         json_encoders = {
             datetime: lambda v: v.isoformat()
@@ -241,28 +242,28 @@ class SystemStatus(BaseModel):
         ge=0.0,
         le=1.0
     )
-    health_issues: List[str] = Field(
+    health_issues: list[str] = Field(
         default=[],
         description="健康问题列表"
     )
-    last_error: Optional[str] = Field(
+    last_error: str | None = Field(
         default=None,
         description="最近的错误"
     )
-    performance_summary: Optional[PerformanceMetrics] = Field(
+    performance_summary: PerformanceMetrics | None = Field(
         default=None,
         description="性能摘要"
     )
-    
+
     def is_operational(self) -> bool:
         """判断是否可操作"""
         return self.status in ["healthy", "warning"]
-    
+
     def add_health_issue(self, issue: str) -> None:
         """添加健康问题"""
         if issue not in self.health_issues:
             self.health_issues.append(issue)
-            
+
     def clear_health_issues(self) -> None:
         """清除健康问题"""
         self.health_issues.clear()
@@ -280,7 +281,7 @@ class BufferStatus(BaseModel):
     overflow_count: int = Field(description="溢出次数", ge=0)
     underflow_count: int = Field(description="下溢次数", ge=0)
     peak_usage: float = Field(description="峰值使用率", ge=0.0, le=1.0)
-    
+
     def is_healthy(self) -> bool:
         """判断缓冲区是否健康"""
         return self.status_level != "critical" and self.overflow_count == 0
@@ -293,25 +294,25 @@ class ErrorCode(str, Enum):
     INVALID_INPUT = "E0001"
     INVALID_CONFIG = "E0002"
     INITIALIZATION_FAILED = "E0003"
-    
+
     # 音频相关错误
     UNSUPPORTED_FORMAT = "E1001"
     INVALID_SAMPLE_RATE = "E1002"
     INVALID_CHANNELS = "E1003"
     AUDIO_CORRUPTION = "E1004"
-    
+
     # 缓冲区错误
     BUFFER_FULL = "E2001"
     BUFFER_EMPTY = "E2002"
     INSUFFICIENT_DATA = "E2003"
     BUFFER_CORRUPTION = "E2004"
-    
+
     # VAD处理错误
     MODEL_LOAD_FAILED = "E3001"
     INFERENCE_FAILED = "E3002"
     RESULT_VALIDATION_FAILED = "E3003"
     BACKEND_UNAVAILABLE = "E3004"
-    
+
     # 性能相关错误
     TIMEOUT_ERROR = "E4001"
     MEMORY_ERROR = "E4002"
@@ -333,10 +334,10 @@ class ErrorInfo(BaseModel):
     message: str = Field(description="错误消息")
     severity: ErrorSeverity = Field(description="严重程度")
     timestamp: datetime = Field(description="发生时间")
-    context: Dict[str, Any] = Field(default={}, description="错误上下文")
-    stack_trace: Optional[str] = Field(default=None, description="堆栈跟踪")
-    recovery_suggestions: List[str] = Field(default=[], description="恢复建议")
-    
+    context: dict[str, Any] = Field(default={}, description="错误上下文")
+    stack_trace: str | None = Field(default=None, description="堆栈跟踪")
+    recovery_suggestions: list[str] = Field(default=[], description="恢复建议")
+
     class Config:
         json_encoders = {
             datetime: lambda v: v.isoformat()

@@ -4,45 +4,34 @@
 本模块提供各种内部工具函数，用于简化常见操作。
 """
 
-import os
-import sys
-import time
-import json
-import logging
+import base64
+import contextlib
+import copy
+import functools
 import hashlib
-import uuid
-import tempfile
-import shutil
-import platform
-import subprocess
 import importlib
 import inspect
-import re
-import traceback
-import functools
-import contextlib
-import warnings
-from typing import (
-    Any, Dict, List, Tuple, Set, Optional, Union, Callable, 
-    TypeVar, Generic, Iterator, Iterable, Generator, Type, cast
-)
-from pathlib import Path
-from datetime import datetime, timedelta
-import threading
-import io
-import base64
-import zlib
-import gzip
+import json
+import logging
+import os
 import pickle
-import urllib.request
-import urllib.parse
-import urllib.error
-import socket
-import struct
+import platform
 import random
+import re
+import shutil
 import string
-import math
-import copy
+import subprocess
+import tempfile
+import threading
+import time
+import uuid
+import zlib
+from collections.abc import Callable, Generator
+from datetime import datetime
+from typing import (
+    Any,
+    TypeVar,
+)
 
 # 类型变量
 T = TypeVar('T')
@@ -54,10 +43,10 @@ logger = logging.getLogger("cascade.utils")
 
 class Singleton(type):
     """单例元类"""
-    
+
     _instances = {}
     _lock = threading.RLock()
-    
+
     def __call__(cls, *args, **kwargs):
         with cls._lock:
             if cls not in cls._instances:
@@ -67,15 +56,15 @@ class Singleton(type):
 
 class LazyProperty:
     """延迟加载属性装饰器"""
-    
+
     def __init__(self, func):
         self.func = func
         functools.update_wrapper(self, func)
-    
+
     def __get__(self, instance, owner):
         if instance is None:
             return self
-        
+
         value = self.func(instance)
         setattr(instance, self.func.__name__, value)
         return value
@@ -83,16 +72,16 @@ class LazyProperty:
 
 class InternalUtils:
     """内部工具函数集合"""
-    
+
     @staticmethod
     def setup_logging(
         level: int = logging.INFO,
-        log_file: Optional[str] = None,
-        log_format: Optional[str] = None,
-        date_format: Optional[str] = None,
+        log_file: str | None = None,
+        log_format: str | None = None,
+        date_format: str | None = None,
         console: bool = True,
-        file_level: Optional[int] = None,
-        console_level: Optional[int] = None,
+        file_level: int | None = None,
+        console_level: int | None = None,
         capture_warnings: bool = True
     ) -> logging.Logger:
         """
@@ -116,43 +105,43 @@ class InternalUtils:
             log_format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
         if date_format is None:
             date_format = "%Y-%m-%d %H:%M:%S"
-        
+
         # 获取根日志记录器
         root_logger = logging.getLogger()
         root_logger.setLevel(level)
-        
+
         # 清除现有处理器
         for handler in root_logger.handlers[:]:
             root_logger.removeHandler(handler)
-        
+
         # 创建格式化器
         formatter = logging.Formatter(log_format, date_format)
-        
+
         # 添加控制台处理器
         if console:
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(formatter)
             console_handler.setLevel(console_level or level)
             root_logger.addHandler(console_handler)
-        
+
         # 添加文件处理器
         if log_file:
             # 确保日志目录存在
             log_dir = os.path.dirname(log_file)
             if log_dir and not os.path.exists(log_dir):
                 os.makedirs(log_dir)
-            
+
             file_handler = logging.FileHandler(log_file, encoding='utf-8')
             file_handler.setFormatter(formatter)
             file_handler.setLevel(file_level or level)
             root_logger.addHandler(file_handler)
-        
+
         # 捕获警告
         if capture_warnings:
             logging.captureWarnings(True)
-        
+
         return root_logger
-    
+
     @staticmethod
     def get_timestamp() -> float:
         """
@@ -162,7 +151,7 @@ class InternalUtils:
             当前时间戳（秒）
         """
         return time.time()
-    
+
     @staticmethod
     def get_iso_timestamp() -> str:
         """
@@ -172,7 +161,7 @@ class InternalUtils:
             ISO格式的当前时间戳
         """
         return datetime.now().isoformat()
-    
+
     @staticmethod
     def format_time(seconds: float) -> str:
         """
@@ -200,7 +189,7 @@ class InternalUtils:
             minutes = seconds // 60
             seconds %= 60
             return f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
-    
+
     @staticmethod
     def format_size(size_bytes: int) -> str:
         """
@@ -220,7 +209,7 @@ class InternalUtils:
             return f"{size_bytes / (1024 * 1024):.2f} MB"
         else:
             return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
-    
+
     @staticmethod
     def generate_uuid() -> str:
         """
@@ -230,9 +219,9 @@ class InternalUtils:
             UUID字符串
         """
         return str(uuid.uuid4())
-    
+
     @staticmethod
-    def generate_random_string(length: int = 8, include_digits: bool = True, 
+    def generate_random_string(length: int = 8, include_digits: bool = True,
                               include_special: bool = False) -> str:
         """
         生成随机字符串
@@ -250,11 +239,11 @@ class InternalUtils:
             chars += string.digits
         if include_special:
             chars += string.punctuation
-        
+
         return ''.join(random.choice(chars) for _ in range(length))
-    
+
     @staticmethod
-    def calculate_md5(data: Union[str, bytes]) -> str:
+    def calculate_md5(data: str | bytes) -> str:
         """
         计算MD5哈希
         
@@ -266,11 +255,11 @@ class InternalUtils:
         """
         if isinstance(data, str):
             data = data.encode('utf-8')
-        
+
         return hashlib.md5(data).hexdigest()
-    
+
     @staticmethod
-    def calculate_sha256(data: Union[str, bytes]) -> str:
+    def calculate_sha256(data: str | bytes) -> str:
         """
         计算SHA256哈希
         
@@ -282,11 +271,11 @@ class InternalUtils:
         """
         if isinstance(data, str):
             data = data.encode('utf-8')
-        
+
         return hashlib.sha256(data).hexdigest()
-    
+
     @staticmethod
-    def compress_data(data: Union[str, bytes]) -> bytes:
+    def compress_data(data: str | bytes) -> bytes:
         """
         压缩数据
         
@@ -298,9 +287,9 @@ class InternalUtils:
         """
         if isinstance(data, str):
             data = data.encode('utf-8')
-        
+
         return zlib.compress(data)
-    
+
     @staticmethod
     def decompress_data(data: bytes) -> bytes:
         """
@@ -313,9 +302,9 @@ class InternalUtils:
             解压后的数据
         """
         return zlib.decompress(data)
-    
+
     @staticmethod
-    def base64_encode(data: Union[str, bytes]) -> str:
+    def base64_encode(data: str | bytes) -> str:
         """
         Base64编码
         
@@ -327,9 +316,9 @@ class InternalUtils:
         """
         if isinstance(data, str):
             data = data.encode('utf-8')
-        
+
         return base64.b64encode(data).decode('utf-8')
-    
+
     @staticmethod
     def base64_decode(data: str) -> bytes:
         """
@@ -342,9 +331,9 @@ class InternalUtils:
             解码后的数据
         """
         return base64.b64decode(data)
-    
+
     @staticmethod
-    def serialize_to_json(obj: Any, indent: Optional[int] = None, 
+    def serialize_to_json(obj: Any, indent: int | None = None,
                          ensure_ascii: bool = False) -> str:
         """
         序列化为JSON
@@ -358,7 +347,7 @@ class InternalUtils:
             JSON字符串
         """
         return json.dumps(obj, indent=indent, ensure_ascii=ensure_ascii)
-    
+
     @staticmethod
     def deserialize_from_json(json_str: str) -> Any:
         """
@@ -371,7 +360,7 @@ class InternalUtils:
             反序列化后的对象
         """
         return json.loads(json_str)
-    
+
     @staticmethod
     def serialize_to_pickle(obj: Any) -> bytes:
         """
@@ -384,7 +373,7 @@ class InternalUtils:
             Pickle字节串
         """
         return pickle.dumps(obj)
-    
+
     @staticmethod
     def deserialize_from_pickle(pickle_bytes: bytes) -> Any:
         """
@@ -397,7 +386,7 @@ class InternalUtils:
             反序列化后的对象
         """
         return pickle.loads(pickle_bytes)
-    
+
     @staticmethod
     def ensure_dir(directory: str) -> None:
         """
@@ -408,7 +397,7 @@ class InternalUtils:
         """
         if not os.path.exists(directory):
             os.makedirs(directory)
-    
+
     @staticmethod
     def get_file_extension(file_path: str) -> str:
         """
@@ -421,7 +410,7 @@ class InternalUtils:
             文件扩展名（不包含点）
         """
         return os.path.splitext(file_path)[1][1:].lower()
-    
+
     @staticmethod
     def is_file_exists(file_path: str) -> bool:
         """
@@ -434,7 +423,7 @@ class InternalUtils:
             文件是否存在
         """
         return os.path.isfile(file_path)
-    
+
     @staticmethod
     def is_dir_exists(directory: str) -> bool:
         """
@@ -447,10 +436,10 @@ class InternalUtils:
             目录是否存在
         """
         return os.path.isdir(directory)
-    
+
     @staticmethod
-    def list_files(directory: str, pattern: Optional[str] = None, 
-                  recursive: bool = False) -> List[str]:
+    def list_files(directory: str, pattern: str | None = None,
+                  recursive: bool = False) -> list[str]:
         """
         列出目录中的文件
         
@@ -463,7 +452,7 @@ class InternalUtils:
             文件路径列表
         """
         result = []
-        
+
         if recursive:
             for root, _, files in os.walk(directory):
                 for file in files:
@@ -474,9 +463,9 @@ class InternalUtils:
                 file_path = os.path.join(directory, file)
                 if os.path.isfile(file_path) and (pattern is None or re.match(pattern, file)):
                     result.append(file_path)
-        
+
         return result
-    
+
     @staticmethod
     def read_file(file_path: str, encoding: str = 'utf-8') -> str:
         """
@@ -489,9 +478,9 @@ class InternalUtils:
         Returns:
             文件内容
         """
-        with open(file_path, 'r', encoding=encoding) as f:
+        with open(file_path, encoding=encoding) as f:
             return f.read()
-    
+
     @staticmethod
     def read_binary_file(file_path: str) -> bytes:
         """
@@ -505,7 +494,7 @@ class InternalUtils:
         """
         with open(file_path, 'rb') as f:
             return f.read()
-    
+
     @staticmethod
     def write_file(file_path: str, content: str, encoding: str = 'utf-8') -> None:
         """
@@ -520,10 +509,10 @@ class InternalUtils:
         directory = os.path.dirname(file_path)
         if directory and not os.path.exists(directory):
             os.makedirs(directory)
-        
+
         with open(file_path, 'w', encoding=encoding) as f:
             f.write(content)
-    
+
     @staticmethod
     def write_binary_file(file_path: str, content: bytes) -> None:
         """
@@ -537,10 +526,10 @@ class InternalUtils:
         directory = os.path.dirname(file_path)
         if directory and not os.path.exists(directory):
             os.makedirs(directory)
-        
+
         with open(file_path, 'wb') as f:
             f.write(content)
-    
+
     @staticmethod
     def append_file(file_path: str, content: str, encoding: str = 'utf-8') -> None:
         """
@@ -555,10 +544,10 @@ class InternalUtils:
         directory = os.path.dirname(file_path)
         if directory and not os.path.exists(directory):
             os.makedirs(directory)
-        
+
         with open(file_path, 'a', encoding=encoding) as f:
             f.write(content)
-    
+
     @staticmethod
     def copy_file(src_path: str, dst_path: str) -> None:
         """
@@ -572,9 +561,9 @@ class InternalUtils:
         dst_dir = os.path.dirname(dst_path)
         if dst_dir and not os.path.exists(dst_dir):
             os.makedirs(dst_dir)
-        
+
         shutil.copy2(src_path, dst_path)
-    
+
     @staticmethod
     def move_file(src_path: str, dst_path: str) -> None:
         """
@@ -588,9 +577,9 @@ class InternalUtils:
         dst_dir = os.path.dirname(dst_path)
         if dst_dir and not os.path.exists(dst_dir):
             os.makedirs(dst_dir)
-        
+
         shutil.move(src_path, dst_path)
-    
+
     @staticmethod
     def delete_file(file_path: str) -> bool:
         """
@@ -610,10 +599,10 @@ class InternalUtils:
         except Exception as e:
             logger.error(f"删除文件 {file_path} 失败: {e}")
             return False
-    
+
     @staticmethod
-    def create_temp_file(suffix: Optional[str] = None, prefix: Optional[str] = None,
-                        dir: Optional[str] = None, text: bool = True) -> Tuple[int, str]:
+    def create_temp_file(suffix: str | None = None, prefix: str | None = None,
+                        dir: str | None = None, text: bool = True) -> tuple[int, str]:
         """
         创建临时文件
         
@@ -627,10 +616,10 @@ class InternalUtils:
             文件描述符和文件路径的元组
         """
         return tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=dir, text=text)
-    
+
     @staticmethod
-    def create_temp_dir(suffix: Optional[str] = None, prefix: Optional[str] = None,
-                       dir: Optional[str] = None) -> str:
+    def create_temp_dir(suffix: str | None = None, prefix: str | None = None,
+                       dir: str | None = None) -> str:
         """
         创建临时目录
         
@@ -643,7 +632,7 @@ class InternalUtils:
             临时目录路径
         """
         return tempfile.mkdtemp(suffix=suffix, prefix=prefix, dir=dir)
-    
+
     @staticmethod
     def get_file_size(file_path: str) -> int:
         """
@@ -656,7 +645,7 @@ class InternalUtils:
             文件大小（字节）
         """
         return os.path.getsize(file_path)
-    
+
     @staticmethod
     def get_file_modification_time(file_path: str) -> float:
         """
@@ -669,7 +658,7 @@ class InternalUtils:
             文件修改时间戳
         """
         return os.path.getmtime(file_path)
-    
+
     @staticmethod
     def get_file_creation_time(file_path: str) -> float:
         """
@@ -682,11 +671,11 @@ class InternalUtils:
             文件创建时间戳
         """
         return os.path.getctime(file_path)
-    
+
     @staticmethod
-    def execute_command(command: Union[str, List[str]], shell: bool = False, 
-                       cwd: Optional[str] = None, env: Optional[Dict[str, str]] = None,
-                       timeout: Optional[float] = None, encoding: str = 'utf-8') -> Tuple[int, str, str]:
+    def execute_command(command: str | list[str], shell: bool = False,
+                       cwd: str | None = None, env: dict[str, str] | None = None,
+                       timeout: float | None = None, encoding: str = 'utf-8') -> tuple[int, str, str]:
         """
         执行命令
         
@@ -712,7 +701,7 @@ class InternalUtils:
                 universal_newlines=True,
                 encoding=encoding
             )
-            
+
             stdout, stderr = process.communicate(timeout=timeout)
             return process.returncode, stdout, stderr
         except subprocess.TimeoutExpired:
@@ -721,7 +710,7 @@ class InternalUtils:
             return -1, stdout, stderr
         except Exception as e:
             return -1, "", str(e)
-    
+
     @staticmethod
     def is_module_available(module_name: str) -> bool:
         """
@@ -738,7 +727,7 @@ class InternalUtils:
             return True
         except ImportError:
             return False
-    
+
     @staticmethod
     def import_module(module_name: str) -> Any:
         """
@@ -751,9 +740,9 @@ class InternalUtils:
             导入的模块
         """
         return importlib.import_module(module_name)
-    
+
     @staticmethod
-    def get_function_args(func: Callable) -> List[str]:
+    def get_function_args(func: Callable) -> list[str]:
         """
         获取函数参数名称
         
@@ -764,9 +753,9 @@ class InternalUtils:
             参数名称列表
         """
         return list(inspect.signature(func).parameters.keys())
-    
+
     @staticmethod
-    def get_class_methods(cls: Type) -> List[str]:
+    def get_class_methods(cls: type) -> list[str]:
         """
         获取类的方法名称
         
@@ -777,9 +766,9 @@ class InternalUtils:
             方法名称列表
         """
         return [name for name, _ in inspect.getmembers(cls, predicate=inspect.isfunction)]
-    
+
     @staticmethod
-    def get_system_info() -> Dict[str, Any]:
+    def get_system_info() -> dict[str, Any]:
         """
         获取系统信息
         
@@ -802,10 +791,10 @@ class InternalUtils:
                 "available": None
             }
         }
-    
+
     @staticmethod
     def retry(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0,
-             exceptions: Tuple[Type[Exception], ...] = (Exception,)) -> Callable:
+             exceptions: tuple[type[Exception], ...] = (Exception,)) -> Callable:
         """
         重试装饰器
         
@@ -823,30 +812,30 @@ class InternalUtils:
             def wrapper(*args, **kwargs):
                 attempt = 1
                 current_delay = delay
-                
+
                 while attempt <= max_attempts:
                     try:
                         return func(*args, **kwargs)
                     except exceptions as e:
                         if attempt == max_attempts:
                             raise
-                        
+
                         logger.warning(
                             f"尝试 {attempt}/{max_attempts} 失败: {e}, "
                             f"将在 {current_delay:.2f} 秒后重试"
                         )
-                        
+
                         time.sleep(current_delay)
                         attempt += 1
                         current_delay *= backoff
-            
+
             return wrapper
-        
+
         return decorator
-    
+
     @staticmethod
     @contextlib.contextmanager
-    def timer(name: Optional[str] = None) -> Generator[None, None, None]:
+    def timer(name: str | None = None) -> Generator[None, None, None]:
         """
         计时上下文管理器
         
@@ -859,14 +848,14 @@ class InternalUtils:
         start_time = time.time()
         yield
         elapsed_time = time.time() - start_time
-        
+
         if name:
             logger.info(f"{name} 耗时: {InternalUtils.format_time(elapsed_time)}")
         else:
             logger.info(f"操作耗时: {InternalUtils.format_time(elapsed_time)}")
-    
+
     @staticmethod
-    def chunks(lst: List[T], n: int) -> Generator[List[T], None, None]:
+    def chunks(lst: list[T], n: int) -> Generator[list[T], None, None]:
         """
         将列表分块
         
@@ -879,9 +868,9 @@ class InternalUtils:
         """
         for i in range(0, len(lst), n):
             yield lst[i:i + n]
-    
+
     @staticmethod
-    def flatten(lst: List[List[T]]) -> List[T]:
+    def flatten(lst: list[list[T]]) -> list[T]:
         """
         扁平化嵌套列表
         
@@ -892,9 +881,9 @@ class InternalUtils:
             扁平化后的列表
         """
         return [item for sublist in lst for item in sublist]
-    
+
     @staticmethod
-    def group_by(items: List[T], key_func: Callable[[T], Any]) -> Dict[Any, List[T]]:
+    def group_by(items: list[T], key_func: Callable[[T], Any]) -> dict[Any, list[T]]:
         """
         按键分组
         
@@ -912,9 +901,9 @@ class InternalUtils:
                 result[key] = []
             result[key].append(item)
         return result
-    
+
     @staticmethod
-    def deep_merge(dict1: Dict, dict2: Dict) -> Dict:
+    def deep_merge(dict1: dict, dict2: dict) -> dict:
         """
         深度合并字典
         
@@ -926,17 +915,17 @@ class InternalUtils:
             合并后的字典
         """
         result = copy.deepcopy(dict1)
-        
+
         for key, value in dict2.items():
             if key in result and isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = InternalUtils.deep_merge(result[key], value)
             else:
                 result[key] = copy.deepcopy(value)
-        
+
         return result
-    
+
     @staticmethod
-    def deep_get(obj: Dict, path: str, default: Any = None, separator: str = '.') -> Any:
+    def deep_get(obj: dict, path: str, default: Any = None, separator: str = '.') -> Any:
         """
         从嵌套字典中获取值
         
@@ -951,16 +940,16 @@ class InternalUtils:
         """
         keys = path.split(separator)
         current = obj
-        
+
         for key in keys:
             if not isinstance(current, dict) or key not in current:
                 return default
             current = current[key]
-        
+
         return current
-    
+
     @staticmethod
-    def deep_set(obj: Dict, path: str, value: Any, separator: str = '.') -> None:
+    def deep_set(obj: dict, path: str, value: Any, separator: str = '.') -> None:
         """
         设置嵌套字典中的值
         
@@ -972,14 +961,14 @@ class InternalUtils:
         """
         keys = path.split(separator)
         current = obj
-        
+
         for key in keys[:-1]:
             if key not in current or not isinstance(current[key], dict):
                 current[key] = {}
             current = current[key]
-        
+
         current[keys[-1]] = value
-    
+
     @staticmethod
     def camel_to_snake(name: str) -> str:
         """
@@ -993,7 +982,7 @@ class InternalUtils:
         """
         s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
-    
+
     @staticmethod
     def snake_to_camel(name: str) -> str:
         """
@@ -1006,7 +995,7 @@ class InternalUtils:
             驼峰命名字符串
         """
         return ''.join(word.title() for word in name.split('_'))
-    
+
     @staticmethod
     def truncate_string(s: str, max_length: int, suffix: str = '...') -> str:
         """
@@ -1023,7 +1012,7 @@ class InternalUtils:
         if len(s) <= max_length:
             return s
         return s[:max_length - len(suffix)] + suffix
-    
+
     @staticmethod
     def is_valid_email(email: str) -> bool:
         """

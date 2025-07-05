@@ -8,43 +8,45 @@
 - 状态管理
 """
 
-import numpy as np
-from datetime import datetime, timezone
-import sys
 import os
+import sys
+
+import numpy as np
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from cascade.types import (
+    AudioChunk,
     # 音频相关类型
-    AudioConfig, AudioChunk, AudioFormat, AudioMetadata,
-    
-    # VAD相关类型
-    VADConfig, VADResult, VADSegment, VADBackend, 
-    ProcessingMode, OptimizationLevel,
-    
-    # 通用类型
-    Status, PerformanceMetrics, SystemStatus, BufferStatus,
-    LogLevel, BufferStrategy, ErrorCode, ErrorSeverity, ErrorInfo,
-    
+    AudioConfig,
+    AudioFormat,
+    AudioFormatError,
+    ErrorInfo,
     # 后端配置类型
-    BackendConfig, ONNXConfig, VLLMConfig,
-    
+    ONNXConfig,
+    OptimizationLevel,
+    PerformanceMetrics,
     # 错误类型
-    PreVADError, AudioFormatError, BufferError, BufferFullError,
-    InsufficientDataError, VADProcessingError, ModelLoadError
+    PreVADError,
+    ProcessingMode,
+    # 通用类型
+    Status,
+    VADBackend,
+    VADConfig,
+    VADResult,
+    VLLMConfig,
 )
 
 
 def audio_config_example():
     """音频配置示例"""
     print("\n=== 音频配置示例 ===")
-    
+
     # 创建默认配置
     default_config = AudioConfig()
     print(f"默认配置: {default_config.json(indent=2)}")
-    
+
     # 创建自定义配置
     custom_config = AudioConfig(
         sample_rate=44100,
@@ -54,14 +56,14 @@ def audio_config_example():
         bit_depth=24
     )
     print(f"自定义配置: {custom_config.json(indent=2)}")
-    
+
     # 使用配置方法
     frame_size = custom_config.get_frame_size(500)  # 500ms的帧大小
     print(f"500ms在44.1kHz下的帧大小: {frame_size}样本")
-    
+
     bytes_per_second = custom_config.get_bytes_per_second()
     print(f"每秒字节数: {bytes_per_second} bytes/s")
-    
+
     # 验证规则示例
     try:
         invalid_config = AudioConfig(sample_rate=10000)  # 不支持的采样率
@@ -72,16 +74,16 @@ def audio_config_example():
 def audio_chunk_example():
     """音频数据块示例"""
     print("\n=== 音频数据块示例 ===")
-    
+
     # 创建一个简单的音频块
     sample_rate = 16000
     duration_ms = 500
     samples = int(sample_rate * duration_ms / 1000)
-    
+
     # 生成一个正弦波作为示例数据
     t = np.linspace(0, duration_ms/1000, samples, False)
     data = np.sin(2 * np.pi * 1000 * t).astype(np.float32)
-    
+
     chunk = AudioChunk(
         data=data,
         sequence_number=1,
@@ -92,14 +94,14 @@ def audio_chunk_example():
         sample_rate=sample_rate,
         is_last=False
     )
-    
+
     # 使用数据块方法
     total_size = chunk.get_total_size()
     print(f"总大小: {total_size}样本")
-    
+
     duration = chunk.get_duration_ms()
     print(f"块时长: {duration}ms")
-    
+
     end_timestamp = chunk.get_end_timestamp_ms()
     print(f"结束时间戳: {end_timestamp}ms")
 
@@ -107,11 +109,11 @@ def audio_chunk_example():
 def vad_config_example():
     """VAD配置示例"""
     print("\n=== VAD配置示例 ===")
-    
+
     # 创建默认配置
     default_config = VADConfig()
     print(f"默认配置: {default_config.json(indent=2)}")
-    
+
     # 创建自定义配置
     custom_config = VADConfig(
         backend=VADBackend.ONNX,
@@ -128,11 +130,11 @@ def vad_config_example():
         smoothing_window_ms=100
     )
     print(f"自定义配置: {custom_config.json(indent=2)}")
-    
+
     # 使用配置方法
     chunk_samples = custom_config.get_chunk_samples(16000)
     print(f"块样本数 (16kHz): {chunk_samples}")
-    
+
     overlap_samples = custom_config.get_overlap_samples(16000)
     print(f"重叠样本数 (16kHz): {overlap_samples}")
 
@@ -140,7 +142,7 @@ def vad_config_example():
 def vad_result_example():
     """VAD结果示例"""
     print("\n=== VAD结果示例 ===")
-    
+
     # 创建VAD结果
     result = VADResult(
         is_speech=True,
@@ -154,14 +156,14 @@ def vad_result_example():
         speech_type="male"
     )
     print(f"VAD结果: {result.json(indent=2)}")
-    
+
     # 使用结果方法
     duration = result.get_duration_ms()
     print(f"语音段时长: {duration}ms")
-    
+
     speech_ratio = result.get_speech_ratio()
     print(f"语音比例: {speech_ratio}")
-    
+
     is_high_confidence = result.is_high_confidence()
     print(f"是否高置信度: {is_high_confidence}")
 
@@ -169,15 +171,15 @@ def vad_result_example():
 def status_example():
     """状态示例"""
     print("\n=== 状态示例 ===")
-    
+
     # 创建成功状态
     ok_status = Status.ok("操作成功", {"operation": "audio_processing"})
     print(f"成功状态: {ok_status.json(indent=2)}")
-    
+
     # 创建错误状态
     error_status = Status.error(404, "资源不存在", {"resource_id": "123"})
     print(f"错误状态: {error_status.json(indent=2)}")
-    
+
     # 使用状态方法
     print(f"状态是否正常: {ok_status.is_ok()}")
     print(f"状态是否错误: {error_status.is_error()}")
@@ -186,7 +188,7 @@ def status_example():
 def error_handling_example():
     """错误处理示例"""
     print("\n=== 错误处理示例 ===")
-    
+
     try:
         # 模拟音频格式错误
         raise AudioFormatError(
@@ -199,7 +201,7 @@ def error_handling_example():
         print(f"错误码: {e.error_code}")
         print(f"严重程度: {e.severity}")
         print(f"上下文: {e.context}")
-        
+
         # 转换为错误信息对象
         error_info = ErrorInfo.from_exception(e)
         print(f"错误信息: {error_info.json(indent=2)}")
@@ -208,7 +210,7 @@ def error_handling_example():
 def backend_config_example():
     """后端配置示例"""
     print("\n=== 后端配置示例 ===")
-    
+
     # 创建ONNX配置
     onnx_config = ONNXConfig(
         model_path="/path/to/model.onnx",
@@ -220,7 +222,7 @@ def backend_config_example():
         graph_optimization_level="basic"
     )
     print(f"ONNX配置: {onnx_config.json(indent=2)}")
-    
+
     # 创建VLLM配置
     vllm_config = VLLMConfig(
         model_path="/path/to/model",
@@ -237,7 +239,7 @@ def backend_config_example():
 def performance_metrics_example():
     """性能指标示例"""
     print("\n=== 性能指标示例 ===")
-    
+
     # 创建性能指标
     metrics = PerformanceMetrics(
         avg_latency_ms=10.5,
@@ -260,14 +262,14 @@ def performance_metrics_example():
         collection_duration_seconds=60.0
     )
     print(f"性能指标: {metrics.json(indent=2)}")
-    
+
     # 使用指标方法
     total_ops = metrics.get_total_operations()
     print(f"总操作数: {total_ops}")
-    
+
     success_rate = metrics.get_success_rate()
     print(f"成功率: {success_rate}")
-    
+
     is_healthy = metrics.is_healthy()
     print(f"性能是否健康: {is_healthy}")
 
@@ -275,7 +277,7 @@ def performance_metrics_example():
 def main():
     """主函数"""
     print("Cascade类型系统使用示例")
-    
+
     audio_config_example()
     audio_chunk_example()
     vad_config_example()

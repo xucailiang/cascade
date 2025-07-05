@@ -5,8 +5,8 @@
 """
 
 import threading
-import time
-from typing import TypeVar, Generic, Optional, Callable, Any, Dict, List, Set, Tuple
+from collections.abc import Callable
+from typing import Generic, TypeVar
 
 T = TypeVar('T')
 
@@ -17,7 +17,7 @@ class AtomicValue(Generic[T]):
     
     提供线程安全的值访问和修改操作。
     """
-    
+
     def __init__(self, initial_value: T):
         """
         初始化原子值
@@ -27,7 +27,7 @@ class AtomicValue(Generic[T]):
         """
         self._value = initial_value
         self._lock = threading.RLock()
-    
+
     def get(self) -> T:
         """
         获取当前值
@@ -37,7 +37,7 @@ class AtomicValue(Generic[T]):
         """
         with self._lock:
             return self._value
-    
+
     def set(self, new_value: T) -> None:
         """
         设置新值
@@ -47,7 +47,7 @@ class AtomicValue(Generic[T]):
         """
         with self._lock:
             self._value = new_value
-    
+
     def update(self, update_func: Callable[[T], T]) -> T:
         """
         原子更新值
@@ -62,7 +62,7 @@ class AtomicValue(Generic[T]):
             new_value = update_func(self._value)
             self._value = new_value
             return new_value
-    
+
     def compare_and_set(self, expected: T, new_value: T) -> bool:
         """
         比较并设置值
@@ -81,10 +81,10 @@ class AtomicValue(Generic[T]):
                 self._value = new_value
                 return True
             return False
-    
+
     def __str__(self) -> str:
         return f"AtomicValue({self.get()})"
-    
+
     def __repr__(self) -> str:
         return self.__str__()
 
@@ -95,7 +95,7 @@ class AtomicCounter:
     
     提供线程安全的计数器操作。
     """
-    
+
     def __init__(self, initial_value: int = 0):
         """
         初始化计数器
@@ -105,7 +105,7 @@ class AtomicCounter:
         """
         self._value = initial_value
         self._lock = threading.RLock()
-    
+
     def get(self) -> int:
         """
         获取当前计数
@@ -115,7 +115,7 @@ class AtomicCounter:
         """
         with self._lock:
             return self._value
-    
+
     def set(self, new_value: int) -> None:
         """
         设置新计数
@@ -125,7 +125,7 @@ class AtomicCounter:
         """
         with self._lock:
             self._value = new_value
-    
+
     def increment(self, delta: int = 1) -> int:
         """
         增加计数
@@ -139,7 +139,7 @@ class AtomicCounter:
         with self._lock:
             self._value += delta
             return self._value
-    
+
     def decrement(self, delta: int = 1) -> int:
         """
         减少计数
@@ -153,15 +153,15 @@ class AtomicCounter:
         with self._lock:
             self._value -= delta
             return self._value
-    
+
     def reset(self) -> None:
         """重置计数为0"""
         with self._lock:
             self._value = 0
-    
+
     def __str__(self) -> str:
         return f"AtomicCounter({self.get()})"
-    
+
     def __repr__(self) -> str:
         return self.__str__()
 
@@ -172,8 +172,8 @@ class AtomicReference(Generic[T]):
     
     提供线程安全的对象引用访问和修改操作。
     """
-    
-    def __init__(self, initial_reference: Optional[T] = None):
+
+    def __init__(self, initial_reference: T | None = None):
         """
         初始化原子引用
         
@@ -182,8 +182,8 @@ class AtomicReference(Generic[T]):
         """
         self._reference = initial_reference
         self._lock = threading.RLock()
-    
-    def get(self) -> Optional[T]:
+
+    def get(self) -> T | None:
         """
         获取当前引用
         
@@ -192,8 +192,8 @@ class AtomicReference(Generic[T]):
         """
         with self._lock:
             return self._reference
-    
-    def set(self, new_reference: Optional[T]) -> None:
+
+    def set(self, new_reference: T | None) -> None:
         """
         设置新引用
         
@@ -202,8 +202,8 @@ class AtomicReference(Generic[T]):
         """
         with self._lock:
             self._reference = new_reference
-    
-    def compare_and_set(self, expected: Optional[T], new_reference: Optional[T]) -> bool:
+
+    def compare_and_set(self, expected: T | None, new_reference: T | None) -> bool:
         """
         比较并设置引用
         
@@ -221,10 +221,10 @@ class AtomicReference(Generic[T]):
                 self._reference = new_reference
                 return True
             return False
-    
+
     def __str__(self) -> str:
         return f"AtomicReference({self.get()})"
-    
+
     def __repr__(self) -> str:
         return self.__str__()
 
@@ -235,8 +235,8 @@ class AtomicDict(Generic[T]):
     
     提供线程安全的字典操作。
     """
-    
-    def __init__(self, initial_dict: Optional[Dict[str, T]] = None):
+
+    def __init__(self, initial_dict: dict[str, T] | None = None):
         """
         初始化原子字典
         
@@ -245,8 +245,8 @@ class AtomicDict(Generic[T]):
         """
         self._dict = initial_dict or {}
         self._lock = threading.RLock()
-    
-    def get(self, key: str, default: Optional[T] = None) -> Optional[T]:
+
+    def get(self, key: str, default: T | None = None) -> T | None:
         """
         获取键对应的值
         
@@ -259,7 +259,7 @@ class AtomicDict(Generic[T]):
         """
         with self._lock:
             return self._dict.get(key, default)
-    
+
     def set(self, key: str, value: T) -> None:
         """
         设置键值对
@@ -270,8 +270,8 @@ class AtomicDict(Generic[T]):
         """
         with self._lock:
             self._dict[key] = value
-    
-    def remove(self, key: str) -> Optional[T]:
+
+    def remove(self, key: str) -> T | None:
         """
         移除键值对
         
@@ -283,7 +283,7 @@ class AtomicDict(Generic[T]):
         """
         with self._lock:
             return self._dict.pop(key, None)
-    
+
     def contains_key(self, key: str) -> bool:
         """
         检查是否包含键
@@ -296,13 +296,13 @@ class AtomicDict(Generic[T]):
         """
         with self._lock:
             return key in self._dict
-    
+
     def clear(self) -> None:
         """清空字典"""
         with self._lock:
             self._dict.clear()
-    
-    def keys(self) -> List[str]:
+
+    def keys(self) -> list[str]:
         """
         获取所有键
         
@@ -311,8 +311,8 @@ class AtomicDict(Generic[T]):
         """
         with self._lock:
             return list(self._dict.keys())
-    
-    def values(self) -> List[T]:
+
+    def values(self) -> list[T]:
         """
         获取所有值
         
@@ -321,8 +321,8 @@ class AtomicDict(Generic[T]):
         """
         with self._lock:
             return list(self._dict.values())
-    
-    def items(self) -> List[Tuple[str, T]]:
+
+    def items(self) -> list[tuple[str, T]]:
         """
         获取所有键值对
         
@@ -331,7 +331,7 @@ class AtomicDict(Generic[T]):
         """
         with self._lock:
             return list(self._dict.items())
-    
+
     def size(self) -> int:
         """
         获取字典大小
@@ -341,8 +341,8 @@ class AtomicDict(Generic[T]):
         """
         with self._lock:
             return len(self._dict)
-    
-    def update(self, other_dict: Dict[str, T]) -> None:
+
+    def update(self, other_dict: dict[str, T]) -> None:
         """
         更新字典
         
@@ -351,10 +351,10 @@ class AtomicDict(Generic[T]):
         """
         with self._lock:
             self._dict.update(other_dict)
-    
+
     def __str__(self) -> str:
         return f"AtomicDict({self._dict})"
-    
+
     def __repr__(self) -> str:
         return self.__str__()
 
@@ -365,7 +365,7 @@ class AtomicFlag:
     
     提供线程安全的布尔标志操作。
     """
-    
+
     def __init__(self, initial_value: bool = False):
         """
         初始化原子标志
@@ -375,7 +375,7 @@ class AtomicFlag:
         """
         self._value = initial_value
         self._lock = threading.RLock()
-    
+
     def get(self) -> bool:
         """
         获取当前标志值
@@ -385,7 +385,7 @@ class AtomicFlag:
         """
         with self._lock:
             return self._value
-    
+
     def set(self, value: bool) -> None:
         """
         设置标志值
@@ -395,7 +395,7 @@ class AtomicFlag:
         """
         with self._lock:
             self._value = value
-    
+
     def set_true(self) -> bool:
         """
         设置标志为True
@@ -407,7 +407,7 @@ class AtomicFlag:
             old_value = self._value
             self._value = True
             return old_value
-    
+
     def set_false(self) -> bool:
         """
         设置标志为False
@@ -419,7 +419,7 @@ class AtomicFlag:
             old_value = self._value
             self._value = False
             return old_value
-    
+
     def compare_and_set(self, expected: bool, new_value: bool) -> bool:
         """
         比较并设置标志
@@ -438,10 +438,10 @@ class AtomicFlag:
                 self._value = new_value
                 return True
             return False
-    
+
     def __str__(self) -> str:
         return f"AtomicFlag({self.get()})"
-    
+
     def __repr__(self) -> str:
         return self.__str__()
 
@@ -452,14 +452,14 @@ class AtomicLock:
     
     提供可重入的线程锁，支持超时和状态检查。
     """
-    
+
     def __init__(self):
         """初始化原子锁"""
         self._lock = threading.RLock()
         self._owner = AtomicReference[threading.Thread](None)
         self._count = AtomicCounter(0)
-    
-    def acquire(self, timeout: Optional[float] = None) -> bool:
+
+    def acquire(self, timeout: float | None = None) -> bool:
         """
         获取锁
         
@@ -470,20 +470,20 @@ class AtomicLock:
             是否成功获取锁
         """
         current_thread = threading.current_thread()
-        
+
         # 检查当前线程是否已经持有锁
         if self._owner.get() == current_thread:
             self._count.increment()
             return True
-        
+
         # 尝试获取锁
         if self._lock.acquire(timeout=timeout):
             self._owner.set(current_thread)
             self._count.set(1)
             return True
-        
+
         return False
-    
+
     def release(self) -> None:
         """
         释放锁
@@ -491,15 +491,15 @@ class AtomicLock:
         如果当前线程不持有锁，则抛出RuntimeError。
         """
         current_thread = threading.current_thread()
-        
+
         if self._owner.get() != current_thread:
             raise RuntimeError("尝试释放未持有的锁")
-        
+
         count = self._count.decrement()
         if count == 0:
             self._owner.set(None)
             self._lock.release()
-    
+
     def is_locked(self) -> bool:
         """
         检查锁是否被持有
@@ -508,7 +508,7 @@ class AtomicLock:
             锁是否被持有
         """
         return self._owner.get() is not None
-    
+
     def is_held_by_current_thread(self) -> bool:
         """
         检查当前线程是否持有锁
@@ -517,7 +517,7 @@ class AtomicLock:
             当前线程是否持有锁
         """
         return self._owner.get() == threading.current_thread()
-    
+
     def get_hold_count(self) -> int:
         """
         获取当前线程持有锁的次数
@@ -528,12 +528,12 @@ class AtomicLock:
         if self._owner.get() == threading.current_thread():
             return self._count.get()
         return 0
-    
+
     def __enter__(self) -> 'AtomicLock':
         """上下文管理器入口"""
         self.acquire()
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """上下文管理器出口"""
         self.release()
@@ -545,8 +545,8 @@ class AtomicStampedReference(Generic[T]):
     
     提供线程安全的对象引用访问和修改操作，同时跟踪版本戳以防止ABA问题。
     """
-    
-    def __init__(self, initial_reference: Optional[T] = None, initial_stamp: int = 0):
+
+    def __init__(self, initial_reference: T | None = None, initial_stamp: int = 0):
         """
         初始化带版本戳的原子引用
         
@@ -557,8 +557,8 @@ class AtomicStampedReference(Generic[T]):
         self._reference = initial_reference
         self._stamp = initial_stamp
         self._lock = threading.RLock()
-    
-    def get_reference(self) -> Optional[T]:
+
+    def get_reference(self) -> T | None:
         """
         获取当前引用
         
@@ -567,7 +567,7 @@ class AtomicStampedReference(Generic[T]):
         """
         with self._lock:
             return self._reference
-    
+
     def get_stamp(self) -> int:
         """
         获取当前版本戳
@@ -577,8 +577,8 @@ class AtomicStampedReference(Generic[T]):
         """
         with self._lock:
             return self._stamp
-    
-    def get(self) -> Tuple[Optional[T], int]:
+
+    def get(self) -> tuple[T | None, int]:
         """
         获取当前引用和版本戳
         
@@ -587,8 +587,8 @@ class AtomicStampedReference(Generic[T]):
         """
         with self._lock:
             return (self._reference, self._stamp)
-    
-    def set(self, new_reference: Optional[T], new_stamp: int) -> None:
+
+    def set(self, new_reference: T | None, new_stamp: int) -> None:
         """
         设置新引用和版本戳
         
@@ -599,8 +599,8 @@ class AtomicStampedReference(Generic[T]):
         with self._lock:
             self._reference = new_reference
             self._stamp = new_stamp
-    
-    def compare_and_set(self, expected_reference: Optional[T], new_reference: Optional[T],
+
+    def compare_and_set(self, expected_reference: T | None, new_reference: T | None,
                         expected_stamp: int, new_stamp: int) -> bool:
         """
         比较并设置引用和版本戳
@@ -622,8 +622,8 @@ class AtomicStampedReference(Generic[T]):
                 self._stamp = new_stamp
                 return True
             return False
-    
-    def attempt_stamp(self, expected_reference: Optional[T], new_stamp: int) -> bool:
+
+    def attempt_stamp(self, expected_reference: T | None, new_stamp: int) -> bool:
         """
         尝试更新版本戳
         
@@ -641,10 +641,10 @@ class AtomicStampedReference(Generic[T]):
                 self._stamp = new_stamp
                 return True
             return False
-    
+
     def __str__(self) -> str:
         return f"AtomicStampedReference(reference={self._reference}, stamp={self._stamp})"
-    
+
     def __repr__(self) -> str:
         return self.__str__()
 

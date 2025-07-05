@@ -37,26 +37,24 @@ __email__ = "xucailiang.ai@gmail.com"
 
 # 核心模块导入
 from .types import (
-    # 配置类型
-    AudioConfig,
-    VADConfig,
-    
     # 数据类型
     AudioChunk,
-    VADResult,
-    PerformanceMetrics,
-    
+    # 配置类型
+    AudioConfig,
     # 枚举类型
     AudioFormat,
-    VADBackend,
-    ProcessingMode,
-    
-    # 异常类型
-    CascadeError,
     AudioFormatError,
     BufferError,
+    # 异常类型
+    CascadeError,
+    PerformanceMetrics,
+    ProcessingMode,
+    VADBackend,
+    VADConfig,
     VADProcessingError,
+    VADResult,
 )
+
 
 # 主要组件导入 (延迟导入以避免循环依赖)
 def __getattr__(name: str):
@@ -83,38 +81,38 @@ def __getattr__(name: str):
 __all__ = [
     # 版本信息
     "__version__",
-    
+
     # 核心处理器
     "VADProcessor",
-    
+
     # 配置类型
-    "AudioConfig", 
+    "AudioConfig",
     "VADConfig",
-    
+
     # 数据类型
-    "AudioChunk", 
-    "VADResult", 
+    "AudioChunk",
+    "VADResult",
     "PerformanceMetrics",
-    
+
     # 枚举类型
-    "AudioFormat", 
-    "VADBackend", 
+    "AudioFormat",
+    "VADBackend",
     "ProcessingMode",
-    
+
     # 后端实现
-    "ONNXVADBackend", 
+    "ONNXVADBackend",
     "VLLMVADBackend",
-    
+
     # 辅助模块（高级用法）
-    "AudioFormatProcessor", 
+    "AudioFormatProcessor",
     "AudioRingBuffer",
-    
+
     # 异常类型
     "CascadeError",
-    "AudioFormatError", 
-    "BufferError", 
+    "AudioFormatError",
+    "BufferError",
     "VADProcessingError",
-    
+
     # 便捷函数
     "create_vad_processor",
     "process_audio_file",
@@ -140,7 +138,7 @@ def create_vad_processor(backend_type: str = "onnx", **kwargs) -> "VADProcessor"
         ... )
     """
     from .processor import VADProcessor
-    
+
     vad_config = VADConfig(backend=backend_type, **kwargs)
     audio_config = AudioConfig()
     return VADProcessor(vad_config, audio_config)
@@ -165,7 +163,7 @@ async def process_audio_file(file_path: str, **kwargs) -> list:
         >>> print(f"检测到 {len(results)} 个语音段")
     """
     processor = create_vad_processor(**kwargs)
-    
+
     try:
         results = []
         async for result in processor.process_file(file_path):
@@ -177,9 +175,9 @@ async def process_audio_file(file_path: str, **kwargs) -> list:
 # 兼容性检查
 def check_compatibility() -> dict:
     """检查系统兼容性"""
-    import sys
     import platform
-    
+    import sys
+
     compatibility_info = {
         "python_version": sys.version,
         "platform": platform.platform(),
@@ -188,7 +186,7 @@ def check_compatibility() -> dict:
         "warnings": [],
         "errors": []
     }
-    
+
     # Python版本检查
     if sys.version_info < (3, 11):
         compatibility_info["compatible"] = False
@@ -196,22 +194,22 @@ def check_compatibility() -> dict:
             f"Python版本过低: {sys.version_info.major}.{sys.version_info.minor}, "
             "需要Python 3.11或更高版本"
         )
-    
+
     # 平台检查
     supported_platforms = ["linux", "darwin", "win32"]
     if sys.platform not in supported_platforms:
         compatibility_info["warnings"].append(
             f"平台 {sys.platform} 可能不被完全支持"
         )
-    
+
     return compatibility_info
 
 # 调试信息
 def get_debug_info() -> dict:
     """获取调试信息"""
-    import sys
     import os
-    
+    import sys
+
     debug_info = {
         "version": __version__,
         "python_version": sys.version,
@@ -219,7 +217,7 @@ def get_debug_info() -> dict:
         "available_backends": [],
         "dependencies": {}
     }
-    
+
     # 检查可用后端
     try:
         import onnxruntime
@@ -227,31 +225,31 @@ def get_debug_info() -> dict:
         debug_info["dependencies"]["onnxruntime"] = onnxruntime.__version__
     except ImportError:
         pass
-    
+
     try:
         import vllm
         debug_info["available_backends"].append("vllm")
         debug_info["dependencies"]["vllm"] = vllm.__version__
     except ImportError:
         pass
-    
+
     # 检查核心依赖
     try:
         import numpy
         debug_info["dependencies"]["numpy"] = numpy.__version__
     except ImportError:
         debug_info["dependencies"]["numpy"] = "未安装"
-    
+
     try:
         import scipy
         debug_info["dependencies"]["scipy"] = scipy.__version__
     except ImportError:
         debug_info["dependencies"]["scipy"] = "未安装"
-    
+
     try:
         import pydantic
         debug_info["dependencies"]["pydantic"] = pydantic.__version__
     except ImportError:
         debug_info["dependencies"]["pydantic"] = "未安装"
-    
+
     return debug_info
