@@ -103,9 +103,10 @@ def pytest_configure(config):
 
 # === 测试报告定制 ===
 
-def pytest_html_report_title(report):
-    """自定义HTML报告标题"""
-    report.title = "Cascade测试报告"
+# 注释掉HTML报告相关函数，因为没有安装pytest-html插件
+# def pytest_html_report_title(report):
+#     """自定义HTML报告标题"""
+#     report.title = "Cascade测试报告"
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config):

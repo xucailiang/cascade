@@ -41,6 +41,7 @@ dependencies = [
     "pytest (>=8.4.1,<9.0.0)",
     "psutil (>=7.0.0,<8.0.0)",
     "ruff (>=0.12.2,<0.13.0)",
+    "coverage (>=7.9.2,<8.0.0)",
 ]
 
 [project.optional-dependencies]
@@ -116,25 +117,25 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*", "*Test"]
 python_functions = ["test_*"]
+# 默认选项，不包含覆盖率报告和基准测试
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--cov=cascade",
-    "--cov-report=term-missing",
-    "--cov-report=html:htmlcov",
-    "--cov-report=xml",
-    "--cov-fail-under=90",
-    "--benchmark-skip",
 ]
+
+# 覆盖率报告和基准测试选项可以通过命令行手动添加
+# 例如: pytest --cov=cascade --cov-report=term-missing
+# 或者使用自定义命令: poetry run python scripts/run_tests.py
 markers = [
     "unit: 单元测试",
     "integration: 集成测试",
     "benchmark: 性能基准测试",
     "slow: 慢速测试",
     "audio: 需要音频文件的测试",
+    "asyncio: 异步测试",
 ]
-asyncio_mode = "auto"
-timeout = 300
+# asyncio_mode = "auto" 已移除，因为这是未知的配置选项
+# timeout = 300 已移除，因为这是未知的配置选项
 
 # ===== 覆盖率配置 =====
 [tool.coverage.run]
@@ -249,3 +250,6 @@ exclude = [
 
 [tool.hatch.version]
 path = "cascade/__init__.py"
+[tool.poetry.group.dev.dependencies]
+pytest-asyncio = "^1.0.0"
+
