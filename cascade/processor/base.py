@@ -290,7 +290,41 @@ class AudioProcessor(abc.ABC):
         # 计算总样本数和块数
         total_samples = len(audio_data)
         step_size = chunk_size - overlap_size
-        num_chunks = (total_samples - overlap_size + step_size - 1) // step_size
+        
+        # 确保至少有一个块（即使音频很短）
+        if total_samples == 0:
+            num_chunks = 0
+            chunks = []
+            context["chunks"] = chunks
+            return context
+        elif total_samples < chunk_size:
+            # 短音频只有一个块（严格小于一个块大小）
+            num_chunks = 1
+            chunk = AudioChunk(
+                data=audio_data,
+                sequence_number=0,
+                start_frame=0,
+                chunk_size=total_samples,
+                overlap_size=0,
+                timestamp_ms=0,
+                sample_rate=audio_config.sample_rate,
+                is_last=True
+            )
+            chunks = [chunk]
+            context["chunks"] = chunks
+            return context
+        else:
+            # 计算块数
+            # 公式: (总样本数 - 重叠样本数 + 步长) // 步长
+            overlap_samples = int(processor_config.overlap_ms * audio_config.sample_rate / 1000)
+            step_samples = chunk_size - overlap_samples  # 步长 = 块大小 - 重叠大小
+            
+            # 计算块数
+            num_chunks = (total_samples - overlap_samples + step_samples) // step_samples
+            
+            # 确保至少有一个块
+            if num_chunks < 1:
+                num_chunks = 1
 
         # 创建块
         chunks = []
@@ -299,34 +333,12 @@ class AudioProcessor(abc.ABC):
             start_pos = i * step_size
             end_pos = min(start_pos + chunk_size, total_samples)
 
-            # 如果最后一个块太小，则与前一个块合并
-            if i == num_chunks - 1 and end_pos - start_pos < chunk_size // 2:
-                if i > 0:
-                    # 更新前一个块的结束位置
-                    chunks[-1].data = audio_data[chunks[-1].start_frame:end_pos]
-                    chunks[-1].chunk_size = end_pos - chunks[-1].start_frame
-                    chunks[-1].is_last = True
-                else:
-                    # 只有一个块，直接使用
-                    chunk = AudioChunk(
-                        data=audio_data[start_pos:end_pos],
-                        sequence_number=i,
-                        start_frame=start_pos,
-                        chunk_size=end_pos - start_pos,
-                        overlap_size=0,
-                        timestamp_ms=start_pos * 1000.0 / audio_config.sample_rate,
-                        sample_rate=audio_config.sample_rate,
-                        is_last=True
-                    )
-                    chunks.append(chunk)
-                break
-
             # 创建块
             chunk = AudioChunk(
                 data=audio_data[start_pos:end_pos],
                 sequence_number=i,
                 start_frame=start_pos,
-                chunk_size=end_pos - start_pos - overlap_size if i < num_chunks - 1 else end_pos - start_pos,
+                chunk_size=end_pos - start_pos - (overlap_size if i < num_chunks - 1 else 0),
                 overlap_size=overlap_size if i < num_chunks - 1 else 0,
                 timestamp_ms=start_pos * 1000.0 / audio_config.sample_rate,
                 sample_rate=audio_config.sample_rate,
@@ -356,11 +368,10 @@ class AudioProcessor(abc.ABC):
         # 使用线程池并行处理
         futures = []
         for chunk in chunks:
-            # 将同步处理函数包装为异步任务
+            # 将同步处理函数包装为异步任务，使用自定义线程池
             future = loop.run_in_executor(
                 None,  # 使用默认执行器
-                self._process_chunk_sync,
-                chunk
+                lambda c=chunk: self.thread_pool.submit(self._process_chunk_sync, c).result()
             )
             futures.append(future)
 

@@ -12,6 +12,7 @@ from cascade.processor.feature_extractor import (
     FeatureExtractor,
     FeatureExtractorConfig,
     FeatureType,
+    FeatureResult,
 )
 from cascade.types.audio import AudioConfig, AudioFormat
 
@@ -190,11 +191,13 @@ async def test_feature_extractor_process_audio(sample_audio):
 
     # 获取结果数据
     result_data = results[0].result_data
-    assert isinstance(result_data, dict)
+    
+    # 验证结果数据类型
+    assert isinstance(result_data, FeatureResult)
 
     # 检查是否包含MFCC特征
     if processor.librosa:
-        assert "mfcc" in result_data["features"] or not processor.librosa
+        assert "mfcc" in result_data.features or not processor.librosa
 
 
 if __name__ == "__main__":

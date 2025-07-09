@@ -10,7 +10,7 @@ import logging
 from enum import Enum
 
 import numpy as np
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from cascade.processor.base import (
     AudioChunk,
@@ -74,8 +74,8 @@ class FeatureExtractorConfig(ProcessorConfig):
         description="是否计算二阶差分"
     )
 
-    @validator('feature_types')
-    def validate_feature_types(cls, v):
+    @field_validator('feature_types')
+    def validate_feature_types(cls, v, info):
         """验证特征类型列表"""
         if not v:
             raise ValueError("特征类型列表不能为空")
@@ -88,8 +88,8 @@ class FeatureExtractorConfig(ProcessorConfig):
 
         return v
 
-    @validator('n_fft')
-    def validate_n_fft(cls, v):
+    @field_validator('n_fft')
+    def validate_n_fft(cls, v, info):
         """验证FFT窗口大小是2的幂"""
         if v & (v - 1) != 0:
             raise ValueError("FFT窗口大小必须是2的幂")
@@ -147,33 +147,45 @@ class FeatureExtractor(AudioProcessor):
             ValueError: 当音频块无效时
             RuntimeError: 当特征提取失败时
         """
+        # 添加日志
+        self.logger.debug(f"开始处理音频块: sequence_number={chunk.sequence_number}, 数据长度={len(chunk.data)}")
+        
         # 获取音频数据
         audio_data = chunk.data
         sample_rate = chunk.sample_rate
 
         # 检查音频数据
         if len(audio_data) == 0:
+            self.logger.error("音频数据为空")
             raise ValueError("音频数据为空")
 
         # 提取特征
         features = {}
         feature_dims = {}
+        
+        # 记录提取的特征类型
+        self.logger.debug(f"要提取的特征类型: {self.config.feature_types}")
 
         # 根据配置提取不同类型的特征
         for feature_type in self.config.feature_types:
+            self.logger.debug(f"开始提取特征: {feature_type}")
+            
             if feature_type == FeatureType.MFCC:
                 mfcc, mfcc_dims = self._extract_mfcc(audio_data, sample_rate)
                 features["mfcc"] = mfcc
                 feature_dims["mfcc"] = mfcc_dims
+                self.logger.debug(f"MFCC特征提取完成，形状: {mfcc_dims}")
 
                 # 如果需要计算差分
                 if self.config.delta:
+                    self.logger.debug("计算MFCC一阶差分")
                     mfcc_delta, delta_dims = self._compute_delta(mfcc)
                     features["mfcc_delta"] = mfcc_delta
                     feature_dims["mfcc_delta"] = delta_dims
 
                 # 如果需要计算二阶差分
                 if self.config.delta_delta:
+                    self.logger.debug("计算MFCC二阶差分")
                     if self.config.delta:
                         mfcc_delta2, delta2_dims = self._compute_delta(mfcc_delta)
                     else:
@@ -184,34 +196,48 @@ class FeatureExtractor(AudioProcessor):
                     feature_dims["mfcc_delta2"] = delta2_dims
 
             elif feature_type == FeatureType.SPECTRAL:
+                self.logger.debug("提取频谱特征")
                 spectral, spectral_dims = self._extract_spectral_features(audio_data, sample_rate)
                 features.update(spectral)
                 feature_dims.update(spectral_dims)
+                self.logger.debug(f"频谱特征提取完成，特征数: {len(spectral)}")
 
             elif feature_type == FeatureType.ENERGY:
+                self.logger.debug("提取能量特征")
                 energy, energy_dims = self._extract_energy_features(audio_data, sample_rate)
                 features.update(energy)
                 feature_dims.update(energy_dims)
+                self.logger.debug(f"能量特征提取完成，特征数: {len(energy)}")
 
             elif feature_type == FeatureType.ZERO_CROSSING_RATE:
+                self.logger.debug("提取过零率特征")
                 zcr, zcr_dims = self._extract_zero_crossing_rate(audio_data, sample_rate)
                 features["zcr"] = zcr
                 feature_dims["zcr"] = zcr_dims
+                self.logger.debug(f"过零率特征提取完成，形状: {zcr_dims}")
 
             elif feature_type == FeatureType.CHROMA:
+                self.logger.debug("提取色度特征")
                 chroma, chroma_dims = self._extract_chroma_features(audio_data, sample_rate)
                 features["chroma"] = chroma
                 feature_dims["chroma"] = chroma_dims
+                self.logger.debug(f"色度特征提取完成，形状: {chroma_dims}")
 
             elif feature_type == FeatureType.CONTRAST:
+                self.logger.debug("提取频谱对比度特征")
                 contrast, contrast_dims = self._extract_contrast_features(audio_data, sample_rate)
                 features["contrast"] = contrast
                 feature_dims["contrast"] = contrast_dims
+                self.logger.debug(f"频谱对比度特征提取完成，形状: {contrast_dims}")
 
             elif feature_type == FeatureType.TONNETZ:
+                self.logger.debug("提取音调网络特征")
                 tonnetz, tonnetz_dims = self._extract_tonnetz_features(audio_data, sample_rate)
                 features["tonnetz"] = tonnetz
                 feature_dims["tonnetz"] = tonnetz_dims
+                self.logger.debug(f"音调网络特征提取完成，形状: {tonnetz_dims}")
+                
+            self.logger.debug(f"特征提取完成: {feature_type}")
 
         # 计算总帧数和特征数
         frame_count = next(iter(features.values())).shape[0] if features else 0

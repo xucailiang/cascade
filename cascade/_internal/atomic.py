@@ -103,8 +103,17 @@ class AtomicCounter:
         Args:
             initial_value: 初始值，默认为0
         """
+        import logging
+        self.logger = logging.getLogger("cascade._internal.atomic.AtomicCounter")
+        self.logger.debug(f"初始化AtomicCounter: initial_value={initial_value}")
+        
+        if initial_value is None:
+            self.logger.warning("初始值为None，设置为0")
+            initial_value = 0
+            
         self._value = initial_value
         self._lock = threading.RLock()
+        self.logger.debug(f"AtomicCounter初始化完成: _value={self._value}")
 
     def get(self) -> int:
         """
@@ -114,6 +123,9 @@ class AtomicCounter:
             当前计数
         """
         with self._lock:
+            if self._value is None:
+                self.logger.warning("计数值为None，返回0")
+                return 0
             return self._value
 
     def set(self, new_value: int) -> None:
@@ -124,7 +136,11 @@ class AtomicCounter:
             new_value: 新计数值
         """
         with self._lock:
+            if new_value is None:
+                self.logger.warning("尝试设置计数值为None，设置为0")
+                new_value = 0
             self._value = new_value
+            self.logger.debug(f"设置计数值: new_value={new_value}")
 
     def increment(self, delta: int = 1) -> int:
         """
@@ -137,7 +153,16 @@ class AtomicCounter:
             增加后的计数
         """
         with self._lock:
+            if self._value is None:
+                self.logger.warning("计数值为None，设置为0后再增加")
+                self._value = 0
+                
+            if delta is None:
+                self.logger.warning("增加量为None，使用默认值1")
+                delta = 1
+                
             self._value += delta
+            self.logger.debug(f"增加计数: delta={delta}, new_value={self._value}")
             return self._value
 
     def decrement(self, delta: int = 1) -> int:
@@ -151,7 +176,22 @@ class AtomicCounter:
             减少后的计数
         """
         with self._lock:
+            if self._value is None:
+                self.logger.warning("计数值为None，设置为0后再减少")
+                self._value = 0
+                
+            if delta is None:
+                self.logger.warning("减少量为None，使用默认值1")
+                delta = 1
+                
             self._value -= delta
+            
+            # 确保计数不会小于0
+            if self._value < 0:
+                self.logger.warning(f"计数值变为负数({self._value})，重置为0")
+                self._value = 0
+                
+            self.logger.debug(f"减少计数: delta={delta}, new_value={self._value}")
             return self._value
 
     def reset(self) -> None:
@@ -180,6 +220,9 @@ class AtomicReference(Generic[T]):
         Args:
             initial_reference: 初始引用对象，默认为None
         """
+        import logging
+        self.logger = logging.getLogger("cascade._internal.atomic.AtomicReference")
+        self.logger.debug(f"初始化AtomicReference: initial_reference={initial_reference}")
         self._reference = initial_reference
         self._lock = threading.RLock()
 
@@ -191,6 +234,7 @@ class AtomicReference(Generic[T]):
             当前引用对象
         """
         with self._lock:
+            self.logger.debug(f"获取引用: _reference={self._reference}")
             return self._reference
 
     def set(self, new_reference: T | None) -> None:
@@ -201,6 +245,7 @@ class AtomicReference(Generic[T]):
             new_reference: 新引用对象
         """
         with self._lock:
+            self.logger.debug(f"设置引用: old={self._reference}, new={new_reference}")
             self._reference = new_reference
 
     def compare_and_set(self, expected: T | None, new_reference: T | None) -> bool:
@@ -455,9 +500,13 @@ class AtomicLock:
 
     def __init__(self):
         """初始化原子锁"""
+        import logging
+        self.logger = logging.getLogger("cascade._internal.atomic.AtomicLock")
+        self.logger.debug("初始化AtomicLock")
         self._lock = threading.RLock()
         self._owner = AtomicReference[threading.Thread](None)
         self._count = AtomicCounter(0)
+        self.logger.debug(f"AtomicLock初始化完成: _lock={self._lock}, _owner={self._owner}, _count={self._count}")
 
     def acquire(self, timeout: float | None = None) -> bool:
         """
@@ -470,19 +519,36 @@ class AtomicLock:
             是否成功获取锁
         """
         current_thread = threading.current_thread()
+        self.logger.debug(f"尝试获取锁: current_thread={current_thread}, owner={self._owner.get()}, count={self._count.get()}, timeout={timeout}")
 
         # 检查当前线程是否已经持有锁
         if self._owner.get() == current_thread:
-            self._count.increment()
+            self.logger.debug("当前线程已持有锁，增加计数")
+            count = self._count.increment()
+            self.logger.debug(f"锁计数增加: new_count={count}")
             return True
 
         # 尝试获取锁
-        if self._lock.acquire(timeout=timeout):
-            self._owner.set(current_thread)
-            self._count.set(1)
-            return True
-
-        return False
+        try:
+            # 处理timeout参数，None表示无限等待（传递-1或不传递timeout）
+            if timeout is None:
+                acquired = self._lock.acquire(blocking=True)
+                self.logger.debug(f"无限等待获取锁结果: {acquired}")
+            else:
+                acquired = self._lock.acquire(blocking=True, timeout=timeout)
+                self.logger.debug(f"有超时获取锁结果: {acquired}, timeout={timeout}")
+                
+            if acquired:
+                self.logger.debug(f"成功获取锁，设置所有者为当前线程: {current_thread}")
+                self._owner.set(current_thread)
+                self._count.set(1)
+                return True
+            else:
+                self.logger.debug("获取锁超时")
+                return False
+        except Exception as e:
+            self.logger.error(f"获取锁时发生错误: {str(e)}")
+            raise
 
     def release(self) -> None:
         """
@@ -491,14 +557,23 @@ class AtomicLock:
         如果当前线程不持有锁，则抛出RuntimeError。
         """
         current_thread = threading.current_thread()
+        self.logger.debug(f"尝试释放锁: current_thread={current_thread}, owner={self._owner.get()}, count={self._count.get()}")
 
         if self._owner.get() != current_thread:
+            self.logger.error(f"尝试释放未持有的锁: current_thread={current_thread}, owner={self._owner.get()}")
             raise RuntimeError("尝试释放未持有的锁")
 
-        count = self._count.decrement()
-        if count == 0:
-            self._owner.set(None)
-            self._lock.release()
+        try:
+            count = self._count.decrement()
+            self.logger.debug(f"锁计数减少: new_count={count}, type={type(count)}")
+            
+            if count == 0:
+                self.logger.debug("锁计数为0，完全释放锁")
+                self._owner.set(None)
+                self._lock.release()
+        except Exception as e:
+            self.logger.error(f"释放锁时发生错误: {str(e)}")
+            raise
 
     def is_locked(self) -> bool:
         """

@@ -12,7 +12,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, root_validator, validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class AudioFormat(str, Enum):
@@ -59,7 +59,7 @@ class AudioConfig(BaseModel):
         le=32
     )
 
-    @validator('sample_rate')
+    @field_validator('sample_rate')
     def validate_sample_rate(cls, v):
         """验证采样率"""
         supported_rates = [8000, 16000, 22050, 44100, 48000]
@@ -67,14 +67,14 @@ class AudioConfig(BaseModel):
             raise ValueError(f'采样率必须是以下之一: {supported_rates}')
         return v
 
-    @validator('channels')
+    @field_validator('channels')
     def validate_channels(cls, v):
         """验证声道数"""
         if v != 1:
             raise ValueError('当前版本仅支持单声道音频')
         return v
 
-    @validator('dtype')
+    @field_validator('dtype')
     def validate_dtype(cls, v):
         """验证数据类型"""
         supported_dtypes = ['float32', 'float64', 'int16', 'int32']
@@ -82,18 +82,18 @@ class AudioConfig(BaseModel):
             raise ValueError(f'数据类型必须是以下之一: {supported_dtypes}')
         return v
 
-    @root_validator(skip_on_failure=True)
-    def validate_format_compatibility(cls, values):
+    @model_validator(mode='after')
+    def validate_format_compatibility(self):
         """验证格式兼容性"""
-        format_type = values.get('format')
-        sample_rate = values.get('sample_rate')
+        format_type = self.format
+        sample_rate = self.sample_rate
 
         if format_type == AudioFormat.PCMA:
             # PCMA格式限制
             if sample_rate not in [8000, 16000]:
                 raise ValueError('PCMA格式仅支持8kHz和16kHz采样率')
 
-        return values
+        return self
 
     def get_frame_size(self, duration_ms: int) -> int:
         """计算指定时长的帧大小（样本数）"""
@@ -168,10 +168,10 @@ class AudioChunk(BaseModel):
         description="附加元数据"
     )
 
-    @validator('overlap_size')
-    def validate_overlap_size(cls, v, values):
+    @field_validator('overlap_size')
+    def validate_overlap_size(cls, v, info):
         """验证重叠大小"""
-        chunk_size = values.get('chunk_size', 0)
+        chunk_size = info.data.get('chunk_size', 0)
         if v >= chunk_size:
             raise ValueError('重叠大小不能大于等于块大小')
         return v

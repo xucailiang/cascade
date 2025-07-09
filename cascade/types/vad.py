@@ -14,7 +14,7 @@ import os
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, root_validator, validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ProcessingMode(str, Enum):
@@ -115,15 +115,16 @@ class VADConfig(BaseModel):
         le=200
     )
 
-    @validator('overlap_ms')
-    def validate_overlap(cls, v, values):
+    @field_validator('overlap_ms')
+    def validate_overlap(cls, v, info):
         """验证重叠时长"""
-        chunk_duration = values.get('chunk_duration_ms', 500)
+        # 在Pydantic V2中，values参数变成了ValidationInfo对象
+        chunk_duration = info.data.get('chunk_duration_ms', 500)
         if v >= chunk_duration * 0.5:
             raise ValueError('重叠时长不能超过块时长的50%')
         return v
 
-    @validator('workers')
+    @field_validator('workers')
     def validate_workers(cls, v):
         """验证工作线程数"""
         max_workers = min(32, (os.cpu_count() or 4) * 2)
@@ -131,12 +132,13 @@ class VADConfig(BaseModel):
             raise ValueError(f'工作线程数不能超过 {max_workers}')
         return v
 
-    @root_validator(skip_on_failure=True)
-    def validate_timing_consistency(cls, values):
+    @model_validator(mode='after')
+    def validate_timing_consistency(self):
         """验证时间参数一致性"""
-        chunk_duration = values.get('chunk_duration_ms', 500)
-        min_speech = values.get('min_speech_duration_ms', 100)
-        max_silence = values.get('max_silence_duration_ms', 500)
+        # 在Pydantic V2中，使用model_validator替代root_validator
+        chunk_duration = self.chunk_duration_ms
+        min_speech = self.min_speech_duration_ms
+        max_silence = self.max_silence_duration_ms
 
         if min_speech > chunk_duration:
             raise ValueError('最小语音段时长不能超过块时长')
@@ -144,7 +146,7 @@ class VADConfig(BaseModel):
         if max_silence > chunk_duration * 2:
             raise ValueError('最大静音段时长过长')
 
-        return values
+        return self
 
     def get_chunk_samples(self, sample_rate: int) -> int:
         """计算块样本数"""
@@ -220,10 +222,11 @@ class VADResult(BaseModel):
         description="附加元数据"
     )
 
-    @validator('end_ms')
-    def validate_time_order(cls, v, values):
+    @field_validator('end_ms')
+    def validate_time_order(cls, v, info):
         """验证时间顺序"""
-        start_ms = values.get('start_ms')
+        # 在Pydantic V2中，values参数变成了ValidationInfo对象
+        start_ms = info.data.get('start_ms')
         if start_ms is not None and v <= start_ms:
             raise ValueError('结束时间必须大于开始时间')
         return v
@@ -265,9 +268,10 @@ class VADSegment(BaseModel):
     chunk_count: int = Field(description="包含的块数", ge=1)
     energy_stats: dict[str, float] | None = Field(default=None, description="能量统计")
 
-    @validator('end_ms')
-    def validate_duration(cls, v, values):
-        start_ms = values.get('start_ms')
+    @field_validator('end_ms')
+    def validate_duration(cls, v, info):
+        # 在Pydantic V2中，values参数变成了ValidationInfo对象
+        start_ms = info.data.get('start_ms')
         if start_ms is not None and v <= start_ms:
             raise ValueError('结束时间必须大于开始时间')
         return v

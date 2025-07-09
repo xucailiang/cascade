@@ -298,11 +298,15 @@ class AudioPipeline(AudioProcessor):
         current_config = audio_config
         current_context = context.copy()
 
+        self.logger.debug(f"开始串行处理，处理器数量: {len(processors)}, continue_on_error: {self.config.continue_on_error}, timeout: {self.config.timeout_seconds}")
+
         for node in processors:
+            self.logger.debug(f"处理器 {node.name} 开始处理")
             try:
                 # 应用输入转换
                 if node.input_transform:
                     try:
+                        self.logger.debug(f"处理器 {node.name} 应用输入转换")
                         # 调用输入转换函数
                         transform_args = (current_audio, current_config, current_context)
                         transform_result = node.input_transform(*transform_args[:node.input_transform.__code__.co_argcount])
@@ -321,39 +325,71 @@ class AudioPipeline(AudioProcessor):
                     except Exception as e:
                         self.logger.error(f"处理器 {node.name} 输入转换失败: {str(e)}")
                         if not self.config.continue_on_error:
+                            self.logger.debug(f"处理器 {node.name} 输入转换失败且continue_on_error=False，中断处理")
                             raise
-
+                
                 # 处理音频
+                self.logger.debug(f"处理器 {node.name} 开始处理音频")
                 processor_task = node.processor.process_audio(
                     current_audio, current_config
                 )
 
                 # 添加超时
                 if self.config.timeout_seconds:
-                    processor_results = await asyncio.wait_for(
-                        processor_task,
-                        timeout=self.config.timeout_seconds
-                    )
+                    self.logger.debug(f"处理器 {node.name} 设置超时: {self.config.timeout_seconds}秒")
+                    try:
+                        processor_results = await asyncio.wait_for(
+                            processor_task,
+                            timeout=self.config.timeout_seconds
+                        )
+                    except asyncio.TimeoutError as e:
+                        self.logger.error(f"处理器 {node.name} 处理超时: {str(e)}")
+                        # 超时异常应该向上传播，而不是被捕获
+                        raise
                 else:
                     processor_results = await processor_task
+
+                # 检查处理结果是否有错误
+                has_error = False
+                for result in processor_results:
+                    if not result.success:
+                        has_error = True
+                        self.logger.warning(f"处理器 {node.name} 返回了错误结果: {result.error}")
+                        break
+
+                if has_error and not self.config.continue_on_error:
+                    self.logger.debug(f"处理器 {node.name} 返回了错误结果且continue_on_error=False，中断处理")
+                    # 保存当前处理器的结果，但不继续处理后续处理器
+                    results[node.name] = processor_results
+                    return results
 
                 # 应用输出转换
                 if node.output_transform:
                     try:
+                        self.logger.debug(f"处理器 {node.name} 应用输出转换")
                         processor_results = node.output_transform(processor_results)
                     except Exception as e:
                         self.logger.error(f"处理器 {node.name} 输出转换失败: {str(e)}")
                         if not self.config.continue_on_error:
+                            self.logger.debug(f"处理器 {node.name} 输出转换失败且continue_on_error=False，中断处理")
                             raise
 
                 # 保存结果
+                self.logger.debug(f"处理器 {node.name} 处理完成，保存结果")
                 results[node.name] = processor_results
 
+            except asyncio.TimeoutError as e:
+                self.logger.error(f"处理器 {node.name} 处理超时: {str(e)}")
+                # 超时异常应该向上传播，不管continue_on_error的值
+                raise
             except Exception as e:
                 self.logger.error(f"处理器 {node.name} 处理失败: {str(e)}")
                 if not self.config.continue_on_error:
-                    break
+                    self.logger.debug(f"处理器 {node.name} 处理失败且continue_on_error=False，中断处理")
+                    # 不要使用break，而是直接返回当前结果，防止后续处理器的结果被包含
+                    return results
 
+        self.logger.debug(f"串行处理完成，结果包含处理器: {list(results.keys())}")
         return results
 
     async def _process_parallel(
@@ -378,10 +414,13 @@ class AudioPipeline(AudioProcessor):
         results: dict[str, list[ProcessResult]] = {}
         tasks = []
 
+        self.logger.debug(f"开始并行处理，处理器数量: {len(processors)}, continue_on_error: {self.config.continue_on_error}, timeout: {self.config.timeout_seconds}")
+
         # 创建所有处理任务
         for node in processors:
             # 为每个处理器创建独立的上下文副本
             node_context = context.copy()
+            self.logger.debug(f"为处理器 {node.name} 创建处理任务")
 
             # 准备处理函数
             async def process_node(n=node, ctx=node_context):
@@ -393,6 +432,7 @@ class AudioPipeline(AudioProcessor):
                     # 应用输入转换
                     if n.input_transform:
                         try:
+                            self.logger.debug(f"处理器 {n.name} 应用输入转换")
                             # 调用输入转换函数
                             transform_args = (current_audio, current_config, current_context)
                             transform_result = n.input_transform(*transform_args[:n.input_transform.__code__.co_argcount])
@@ -411,10 +451,12 @@ class AudioPipeline(AudioProcessor):
                         except Exception as e:
                             self.logger.error(f"处理器 {n.name} 输入转换失败: {str(e)}")
                             if not self.config.continue_on_error:
+                                self.logger.debug(f"处理器 {n.name} 输入转换失败且continue_on_error=False，中断处理")
                                 raise
                             return n.name, []
 
                     # 处理音频
+                    self.logger.debug(f"处理器 {n.name} 开始处理音频")
                     processor_results = await n.processor.process_audio(
                         current_audio, current_config
                     )
@@ -422,12 +464,15 @@ class AudioPipeline(AudioProcessor):
                     # 应用输出转换
                     if n.output_transform:
                         try:
+                            self.logger.debug(f"处理器 {n.name} 应用输出转换")
                             processor_results = n.output_transform(processor_results)
                         except Exception as e:
                             self.logger.error(f"处理器 {n.name} 输出转换失败: {str(e)}")
                             if not self.config.continue_on_error:
+                                self.logger.debug(f"处理器 {n.name} 输出转换失败且continue_on_error=False，中断处理")
                                 raise
 
+                    self.logger.debug(f"处理器 {n.name} 处理完成")
                     return n.name, processor_results
 
                 except Exception as e:
@@ -442,34 +487,49 @@ class AudioPipeline(AudioProcessor):
         # 等待所有任务完成或超时
         if tasks:
             if self.config.timeout_seconds:
-                completed_tasks, _ = await asyncio.wait(
-                    tasks,
-                    timeout=self.config.timeout_seconds,
-                    return_when=asyncio.ALL_COMPLETED
-                )
+                self.logger.debug(f"设置并行处理超时: {self.config.timeout_seconds}秒")
+                try:
+                    completed_tasks, pending_tasks = await asyncio.wait(
+                        tasks,
+                        timeout=self.config.timeout_seconds,
+                        return_when=asyncio.ALL_COMPLETED
+                    )
 
-                # 处理完成的任务
-                for task in completed_tasks:
-                    try:
-                        name, processor_results = await task
-                        results[name] = processor_results
-                    except Exception:
-                        # 已在处理函数中记录错误
-                        pass
+                    if pending_tasks:
+                        self.logger.warning(f"并行处理超时，{len(pending_tasks)}个任务未完成")
+
+                    # 处理完成的任务
+                    for task in completed_tasks:
+                        try:
+                            name, processor_results = await task
+                            self.logger.debug(f"处理器 {name} 任务完成，保存结果")
+                            results[name] = processor_results
+                        except Exception as e:
+                            self.logger.error(f"处理任务结果处理失败: {str(e)}")
+                            # 已在处理函数中记录错误
+                            pass
+                except asyncio.TimeoutError as e:
+                    self.logger.error(f"并行处理整体超时: {str(e)}")
+                    # 超时异常应该向上传播
+                    raise
             else:
                 # 无超时限制，等待所有任务完成
+                self.logger.debug("无超时限制，等待所有任务完成")
                 completed_results = await asyncio.gather(*tasks, return_exceptions=True)
 
                 # 处理结果
                 for result in completed_results:
                     if isinstance(result, Exception):
+                        self.logger.error(f"处理任务异常: {str(result)}")
                         # 已在处理函数中记录错误
                         continue
 
                     if isinstance(result, tuple) and len(result) == 2:
                         name, processor_results = result
+                        self.logger.debug(f"处理器 {name} 任务完成，保存结果")
                         results[name] = processor_results
 
+        self.logger.debug(f"并行处理完成，结果包含处理器: {list(results.keys())}")
         return results
 
 

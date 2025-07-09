@@ -9,7 +9,7 @@ import logging
 from enum import Enum
 
 import numpy as np
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from cascade.processor.base import (
     AudioChunk,
@@ -62,7 +62,7 @@ class NoiseReducerConfig(ProcessorConfig):
         le=100
     )
 
-    @validator('fft_size')
+    @field_validator('fft_size')
     def validate_fft_size(cls, v):
         """验证FFT大小是2的幂"""
         if v & (v - 1) != 0:

@@ -8,7 +8,7 @@
 """
 
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from .vad import OptimizationLevel
 
@@ -71,7 +71,7 @@ class ONNXConfig(BackendConfig):
         description="图优化级别"
     )
 
-    @validator('providers')
+    @field_validator('providers')
     def validate_providers(cls, v):
         """验证执行提供者"""
         valid_providers = [
@@ -128,7 +128,7 @@ class VLLMConfig(BackendConfig):
         description="数据类型"
     )
 
-    @validator('dtype')
+    @field_validator('dtype')
     def validate_dtype(cls, v):
         """验证数据类型"""
         valid_dtypes = ["auto", "half", "float16", "bfloat16", "float", "float32"]
