@@ -8,9 +8,12 @@
 """
 
 
-from pydantic import BaseModel, Field, field_validator
+from enum import Enum
 
-from .vad import OptimizationLevel
+from onnxruntime import GraphOptimizationLevel
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from .vad import OptimizationLevel, VADSensitivity
 
 
 class BackendConfig(BaseModel):
@@ -46,6 +49,24 @@ class BackendConfig(BaseModel):
 
 class ONNXConfig(BackendConfig):
     """ONNX后端配置"""
+    sample_rate: int = Field(
+        default=16000,
+        description="音频采样率",
+        ge=8000,
+        le=48000
+    )
+    threshold: float = Field(
+        default=0.5,
+        description="VAD检测阈值",
+        ge=0.0,
+        le=1.0
+    )
+    chunk_duration_ms: int = Field(
+        default=250,
+        description="块时长（毫秒）",
+        ge=10,
+        le=5000
+    )
     providers: list[str] = Field(
         default=["CPUExecutionProvider"],
         description="执行提供者列表"
@@ -66,10 +87,25 @@ class ONNXConfig(BackendConfig):
         default="sequential",
         description="执行模式"
     )
-    graph_optimization_level: str = Field(
-        default="all",
+    graph_optimization_level: GraphOptimizationLevel = Field(
+        default=GraphOptimizationLevel.ORT_ENABLE_ALL,
         description="图优化级别"
     )
+
+    @field_validator('graph_optimization_level', mode='before')
+    def validate_graph_optimization_level(cls, v):
+        """验证并转换图优化级别"""
+        if isinstance(v, str):
+            level_map = {
+                "none": GraphOptimizationLevel.ORT_DISABLE_ALL,
+                "basic": GraphOptimizationLevel.ORT_ENABLE_BASIC,
+                "extended": GraphOptimizationLevel.ORT_ENABLE_EXTENDED,
+                "all": GraphOptimizationLevel.ORT_ENABLE_ALL,
+            }
+            if v.lower() not in level_map:
+                raise ValueError(f"无效的图优化级别: {v}")
+            return level_map[v.lower()]
+        return v
 
     @field_validator('providers')
     def validate_providers(cls, v):
@@ -85,16 +121,18 @@ class ONNXConfig(BackendConfig):
                 raise ValueError(f'无效的执行提供者: {provider}')
         return v
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "json_schema_extra": {
             "examples": [
                 {
                     "model_path": "/path/to/model.onnx",
                     "providers": ["CPUExecutionProvider"],
-                    "intra_op_num_threads": 1
+                    "intra_op_num_threads": 1,
                 }
             ]
-        }
+        },
+    }
 
 
 class VLLMConfig(BackendConfig):
@@ -135,3 +173,138 @@ class VLLMConfig(BackendConfig):
         if v not in valid_dtypes:
             raise ValueError(f'无效的数据类型: {v}')
         return v
+
+class OverlapStrategy(str, Enum):
+    """重叠处理策略"""
+    FRONT_PRIORITY = "front_priority"  # 前块优先
+    BACK_PRIORITY = "back_priority"    # 后块优先
+    MAX_CONFIDENCE = "max_confidence"  # 最高置信度优先
+
+
+class ProcessorConfig(BaseModel):
+    """处理器配置"""
+    chunk_duration_ms: int = Field(
+        default=250,
+        description="块时长（毫秒）",
+        ge=10,
+        le=5000
+    )
+    overlap_ms: int = Field(
+        default=16,
+        description="重叠区域时长（毫秒）",
+        ge=0,
+        le=100
+    )
+    overlap_strategy: OverlapStrategy = Field(
+        default=OverlapStrategy.FRONT_PRIORITY,
+        description="重叠处理策略"
+    )
+    max_workers: int | None = Field(
+        default=None,
+        description="最大工作线程数，None表示使用默认值"
+    )
+    thread_name_prefix: str = Field(
+        default="audio-processor",
+        description="线程名称前缀"
+    )
+
+
+class VADProcessorConfig(ProcessorConfig):
+    """VAD 处理器配置"""
+    # 基本配置
+    sample_rate: int = Field(
+        default=16000,
+        description="音频采样率",
+        ge=8000,
+        le=48000
+    )
+    sensitivity: VADSensitivity = Field(
+        default=VADSensitivity.MEDIUM,
+        description="VAD 灵敏度"
+    )
+    backend_type: str = Field(
+        default="onnx",
+        description="VAD后端类型，支持'onnx'等"
+    )
+    model_path: str = Field(
+        default="",
+        description="VAD模型路径"
+    )
+    threshold: float = Field(
+        default=0.5,
+        description="VAD检测阈值",
+        ge=0.0,
+        le=1.0
+    )
+
+    # 线程池配置
+    workers: int = Field(
+        default=4,
+        description="工作线程数",
+        ge=1,
+        le=32
+    )
+
+    # 结果合并配置
+    min_speech_duration_ms: int = Field(
+        default=100,
+        description="最小语音持续时间（毫秒）",
+        ge=10,
+        le=1000
+    )
+    min_silence_duration_ms: int = Field(
+        default=300,
+        description="最小静音持续时间（毫秒）",
+        ge=10,
+        le=1000
+    )
+    smoothing_window: int = Field(
+        default=3,
+        description="平滑窗口大小",
+        ge=1,
+        le=10
+    )
+
+    # 兼容旧版本的配置
+    energy_threshold_low: float = Field(
+        default=0.01,
+        description="低灵敏度能量阈值（已废弃）",
+        ge=0.0,
+        le=1.0,
+        deprecated=True
+    )
+    energy_threshold_medium: float = Field(
+        default=0.005,
+        description="中等灵敏度能量阈值（已废弃）",
+        ge=0.0,
+        le=1.0,
+        deprecated=True
+    )
+    energy_threshold_high: float = Field(
+        default=0.002,
+        description="高灵敏度能量阈值（已废弃）",
+        ge=0.0,
+        le=1.0,
+        deprecated=True
+    )
+    speech_pad_ms: int = Field(
+        default=30,
+        description="语音段前后填充时间（毫秒）",
+        ge=0,
+        le=500
+    )
+    normalize_audio: bool = Field(
+        default=True,
+        description="是否归一化音频"
+    )
+
+    @model_validator(mode='after')
+    def update_threshold_by_sensitivity(self):
+        """根据灵敏度更新阈值"""
+        if self.sensitivity == VADSensitivity.LOW:
+            self.threshold = 0.7
+        elif self.sensitivity == VADSensitivity.MEDIUM:
+            self.threshold = 0.5
+        elif self.sensitivity == VADSensitivity.HIGH:
+            self.threshold = 0.3
+        return self

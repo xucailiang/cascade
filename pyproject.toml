@@ -42,6 +42,7 @@ dependencies = [
     "psutil (>=7.0.0,<8.0.0)",
     "ruff (>=0.12.2,<0.13.0)",
     "coverage (>=7.9.2,<8.0.0)",
+    "onnxruntime (>=1.22.0,<2.0.0)",
 ]
 
 [project.optional-dependencies]

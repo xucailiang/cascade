@@ -12,7 +12,7 @@ VAD相关类型定义
 
 import os
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -36,6 +36,13 @@ class VADBackend(str, Enum):
     """支持的VAD后端"""
     ONNX = "onnx"
     VLLM = "vllm"
+
+
+class VADSensitivity(str, Enum):
+    """VAD 灵敏度"""
+    LOW = "low"        # 低灵敏度，减少误检
+    MEDIUM = "medium"  # 中等灵敏度，平衡误检和漏检
+    HIGH = "high"      # 高灵敏度，减少漏检
 
     @classmethod
     def get_default_backend(cls) -> str:
@@ -103,7 +110,7 @@ class VADConfig(BaseModel):
         description="最大静音段时长（毫秒）",
         ge=50
     )
-    energy_threshold: float | None = Field(
+    energy_threshold: Optional[float] = Field(
         default=None,
         description="能量阈值",
         ge=0.0
@@ -133,9 +140,8 @@ class VADConfig(BaseModel):
         return v
 
     @model_validator(mode='after')
-    def validate_timing_consistency(self):
+    def validate_timing_consistency(self) -> 'VADConfig':
         """验证时间参数一致性"""
-        # 在Pydantic V2中，使用model_validator替代root_validator
         chunk_duration = self.chunk_duration_ms
         min_speech = self.min_speech_duration_ms
         max_silence = self.max_silence_duration_ms
@@ -159,7 +165,7 @@ class VADConfig(BaseModel):
     class Config:
         extra = "forbid"
         use_enum_values = True
-        schema_extra = {
+        json_schema_extra = {
             "examples": [
                 {
                     "backend": "onnx",
@@ -204,20 +210,20 @@ class VADResult(BaseModel):
         ge=0.0,
         le=1.0
     )
-    energy_level: float | None = Field(
+    energy_level: Optional[float] = Field(
         default=None,
         description="能量级别",
         ge=0.0
     )
-    snr_db: float | None = Field(
+    snr_db: Optional[float] = Field(
         default=None,
         description="信噪比（dB）"
     )
-    speech_type: str | None = Field(
+    speech_type: Optional[str] = Field(
         default=None,
         description="语音类型（如：male, female, child）"
     )
-    metadata: dict[str, Any] | None = Field(
+    metadata: Optional[dict[str, Any]] = Field(
         default=None,
         description="附加元数据"
     )
@@ -245,7 +251,7 @@ class VADResult(BaseModel):
 
     class Config:
         extra = "allow"
-        schema_extra = {
+        json_schema_extra = {
             "examples": [
                 {
                     "is_speech": True,
@@ -259,6 +265,49 @@ class VADResult(BaseModel):
         }
 
 
+class MergerConfig(BaseModel):
+    """
+    VAD结果合并器配置
+
+    控制VAD结果合并行为的所有参数。
+    """
+    window_size: int = Field(
+        default=3,
+        description="平滑窗口大小",
+        ge=1,
+        le=10
+    )
+    threshold: float = Field(
+        default=0.5,
+        description="VAD检测阈值",
+        ge=0.0,
+        le=1.0
+    )
+    min_speech_duration_ms: int = Field(
+        default=100,
+        description="最小语音段时长（毫秒）",
+        ge=10
+    )
+    min_silence_duration_ms: int = Field(
+        default=300,
+        description="最小静音段时长（毫秒）",
+        ge=10
+    )
+
+    class Config:
+        extra = "forbid"
+        json_schema_extra = {
+            "examples": [
+                {
+                    "window_size": 3,
+                    "threshold": 0.5,
+                    "min_speech_duration_ms": 100,
+                    "min_silence_duration_ms": 300
+                }
+            ]
+        }
+
+
 class VADSegment(BaseModel):
     """VAD语音段"""
     start_ms: float = Field(description="开始时间（毫秒）", ge=0.0)
@@ -266,7 +315,7 @@ class VADSegment(BaseModel):
     confidence: float = Field(description="平均置信度", ge=0.0, le=1.0)
     peak_probability: float = Field(description="峰值概率", ge=0.0, le=1.0)
     chunk_count: int = Field(description="包含的块数", ge=1)
-    energy_stats: dict[str, float] | None = Field(default=None, description="能量统计")
+    energy_stats: Optional[dict[str, float]] = Field(default=None, description="能量统计")
 
     @field_validator('end_ms')
     def validate_duration(cls, v, info):

@@ -10,7 +10,7 @@ from typing import Any, BinaryIO
 import numpy as np
 
 from cascade.types.audio import AudioConfig
-from cascade.types.audio import AudioFormat as AudioFormatEnum
+from cascade.types.audio import AudioFormat
 
 
 class AudioStream(abc.ABC):
@@ -105,7 +105,7 @@ class AudioStream(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_format(self) -> AudioFormatEnum:
+    def get_format(self) -> AudioFormat:
         """
         获取音频格式
         
@@ -223,7 +223,7 @@ class FormatProcessorRegistry:
         """初始化格式处理器注册中心"""
         self._processors = {}
 
-    def register(self, format_type: AudioFormatEnum, processor_class: type) -> None:
+    def register(self, format_type: AudioFormat, processor_class: type) -> None:
         """
         注册格式处理器
         
@@ -233,7 +233,7 @@ class FormatProcessorRegistry:
         """
         self._processors[format_type] = processor_class
 
-    def get_processor(self, format_type: AudioFormatEnum) -> Any:
+    def get_processor(self, format_type: AudioFormat) -> Any:
         """
         获取格式处理器实例
         

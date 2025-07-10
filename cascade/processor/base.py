@@ -12,7 +12,6 @@ import abc
 import asyncio
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from enum import Enum
 from typing import Any
 
 import numpy as np
@@ -20,41 +19,7 @@ from pydantic import BaseModel, Field
 
 from cascade.buffer.base import AudioBuffer
 from cascade.types.audio import AudioConfig
-
-
-class OverlapStrategy(str, Enum):
-    """重叠处理策略"""
-    FRONT_PRIORITY = "front_priority"  # 前块优先
-    BACK_PRIORITY = "back_priority"    # 后块优先
-    MAX_CONFIDENCE = "max_confidence"  # 最高置信度优先
-
-
-class ProcessorConfig(BaseModel):
-    """处理器配置"""
-    chunk_duration_ms: int = Field(
-        default=250,
-        description="块时长（毫秒）",
-        ge=10,
-        le=5000
-    )
-    overlap_ms: int = Field(
-        default=16,
-        description="重叠区域时长（毫秒）",
-        ge=0,
-        le=100
-    )
-    overlap_strategy: OverlapStrategy = Field(
-        default=OverlapStrategy.FRONT_PRIORITY,
-        description="重叠处理策略"
-    )
-    max_workers: int | None = Field(
-        default=None,
-        description="最大工作线程数，None表示使用默认值"
-    )
-    thread_name_prefix: str = Field(
-        default="audio-processor",
-        description="线程名称前缀"
-    )
+from cascade.types.config import OverlapStrategy, ProcessorConfig
 
 
 class AudioChunk(BaseModel):

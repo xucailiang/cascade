@@ -17,7 +17,6 @@ Cascade VAD后端实现
 
 from .base import VADBackend
 from .onnx import ONNXVADBackend
-from .vllm import VLLMVADBackend
 
 __all__ = [
     "VADBackend",
