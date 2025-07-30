@@ -38,11 +38,12 @@ class VADBackend(str, Enum):
     """支持的VAD后端"""
     ONNX = "onnx"
     VLLM = "vllm"
+    SILERO = "silero"  # 新增Silero支持
 
     @classmethod
     def get_default_backend(cls) -> str:
         """获取默认后端"""
-        return cls.ONNX.value
+        return cls.SILERO.value
 
 class ProcessingMode(str, Enum):
     """处理模式"""
@@ -612,6 +613,85 @@ class VLLMConfig(BackendConfig):
             raise ValueError(f'无效的数据类型: {v}')
         return v
 
+class SileroConfig(BackendConfig):
+    """Silero VAD后端配置"""
+    onnx: bool = Field(
+        default=True,
+        description="是否使用ONNX模式，默认使用onnx"
+    )
+    force_reload: bool = Field(
+        default=False,
+        description="是否强制重新加载模型（仅torch.hub模式）"
+    )
+    opset_version: int = Field(
+        default=16,
+        description="ONNX模型opset版本",
+        ge=15,
+        le=16
+    )
+    repo_or_dir: str = Field(
+        default="onnx-community/silero-vad",
+        description="模型仓库或目录（torch.hub模式）"
+    )
+    model_name: str = Field(
+        default="silero_vad",
+        description="模型名称（torch.hub模式）"
+    )
+    use_pip_package: bool = Field(
+        default=True,
+        description="优先使用silero-vad pip包，失败时回退到torch.hub"
+    )
+    chunk_size_samples: dict[int, int] = Field(
+        default={16000: 512, 8000: 256},
+        description="不同采样率的块大小映射"
+    )
+    return_seconds: bool = Field(
+        default=False,
+        description="VADIterator是否返回时间戳（秒）"
+    )
+    streaming_mode: bool = Field(
+        default=False,
+        description="是否使用流式处理模式（VADIterator），默认使用直接模型调用"
+    )
+    
+    @field_validator('opset_version')
+    @classmethod
+    def validate_opset_version(cls, v):
+        """验证opset版本"""
+        if v == 15:
+            # opset_version=15仅支持16kHz
+            pass
+        elif v == 16:
+            # opset_version=16支持8kHz和16kHz
+            pass
+        else:
+            raise ValueError('opset_version必须是15或16')
+        return v
+    
+    def get_required_chunk_size(self, sample_rate: int) -> int:
+        """获取指定采样率的必需块大小"""
+        if sample_rate not in self.chunk_size_samples:
+            raise ValueError(f'不支持的采样率: {sample_rate}')
+        return self.chunk_size_samples[sample_rate]
+    
+    def is_chunk_size_compatible(self, sample_rate: int, chunk_size: int) -> bool:
+        """检查块大小是否兼容"""
+        required_size = self.get_required_chunk_size(sample_rate)
+        return chunk_size >= required_size
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "onnx": False,
+                    "force_reload": False,
+                    "opset_version": 16,
+                    "use_pip_package": True,
+                    "return_seconds": False
+                }
+            ]
+        }
+
 # === 通用状态类型 ===
 
 class Status(str, Enum):
@@ -652,7 +732,7 @@ __all__ = [
     "VADConfig", "VADResult", "VADSegment",
 
     # 后端配置
-    "BackendConfig", "ONNXConfig", "VLLMConfig",
+    "BackendConfig", "ONNXConfig", "VLLMConfig", "SileroConfig",
 
     # 错误处理类型
     "ErrorCode", "ErrorSeverity", "CascadeError", "AudioFormatError",

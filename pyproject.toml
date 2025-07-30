@@ -40,63 +40,19 @@ dependencies = [
     "asyncio-throttle>=1.0.0,<2.0.0",
     "pytest (>=8.4.1,<9.0.0)",
     "flake8 (>=7.3.0,<8.0.0)",
-]
-
-[project.optional-dependencies]
-# 开发依赖
-dev = [
-    "pytest>=7.4.0",
-    "pytest-cov>=4.1.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-benchmark>=4.0.0",
-    "pytest-xdist>=3.3.0",
-    "black>=23.9.0",
-    "isort>=5.12.0",
-    "mypy>=1.6.0",
-    "ruff>=0.1.0",
-    "pre-commit>=3.5.0",
-]
-
-# 文档依赖
-docs = [
-    "mkdocs>=1.5.0",
-    "mkdocs-material>=9.4.0",
-    "mkdocstrings[python]>=0.23.0",
-    "markdown-include>=0.8.0",
-]
-
-# VAD后端依赖
-onnx = [
-    "onnxruntime>=1.16.0,<2.0.0",
-]
-vllm = [
-    "vllm>=0.2.0,<1.0.0",
-    "torch>=2.0.0,<3.0.0",
-]
-
-# 完整安装
-full = [
-    # 开发依赖
-    "pytest>=7.4.0",
-    "pytest-cov>=4.1.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-benchmark>=4.0.0",
-    "pytest-xdist>=3.3.0",
-    "black>=23.9.0",
-    "isort>=5.12.0",
-    "mypy>=1.6.0",
-    "ruff>=0.1.0",
-    "pre-commit>=3.5.0",
-    # 文档依赖
-    "mkdocs>=1.5.0",
-    "mkdocs-material>=9.4.0",
-    "mkdocstrings[python]>=0.23.0",
-    "markdown-include>=0.8.0",
-    # ONNX后端
-    "onnxruntime>=1.16.0,<2.0.0",
-    # VLLM后端
-    "vllm>=0.2.0,<1.0.0",
-    "torch>=2.0.0,<3.0.0",
+    "onnxruntime (>=1.22.1,<2.0.0)",
+    "mkdocs (>=1.6.1,<2.0.0)",
+    "pytest-cov (>=6.2.1,<7.0.0)",
+    "pytest-asyncio (>=1.1.0,<2.0.0)",
+    "pytest-benchmark (>=5.1.0,<6.0.0)",
+    "pytest-xdist (>=3.8.0,<4.0.0)",
+    "black (>=25.1.0,<26.0.0)",
+    "isort (>=6.0.1,<7.0.0)",
+    "mypy (>=1.17.0,<2.0.0)",
+    "pre-commit (>=4.2.0,<5.0.0)",
+    "ruff (>=0.12.7,<0.13.0)",
+    "torchaudio (>=2.7.1,<3.0.0)",
+    "silero-vad (>=5.1.2,<6.0.0)",
 ]
 
 [project.urls]
@@ -115,6 +71,14 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short"
+]
+markers = [
+    "asyncio: mark test as async",
+]
+asyncio_mode = "auto"
 
 # ===== 代码格式化 =====
 [tool.black]
