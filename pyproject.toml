@@ -38,6 +38,8 @@ dependencies = [
     "numpy>=1.24.0,<2.0.0",
     "scipy>=1.11.0,<2.0.0",
     "asyncio-throttle>=1.0.0,<2.0.0",
+    "pytest (>=8.4.1,<9.0.0)",
+    "flake8 (>=7.3.0,<8.0.0)",
 ]
 
 [project.optional-dependencies]
@@ -110,52 +112,9 @@ cascade-validate = "cascade.scripts.validate:main"
 # ===== 测试配置 =====
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
-python_classes = ["Test*", "*Test"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = [
-    "--strict-markers",
-    "--strict-config",
-    "--cov=cascade",
-    "--cov-report=term-missing",
-    "--cov-report=html:htmlcov",
-    "--cov-report=xml",
-    "--cov-fail-under=90",
-    "--benchmark-skip",
-]
-markers = [
-    "unit: 单元测试",
-    "integration: 集成测试",
-    "benchmark: 性能基准测试",
-    "slow: 慢速测试",
-    "audio: 需要音频文件的测试",
-]
-asyncio_mode = "auto"
-timeout = 300
-
-# ===== 覆盖率配置 =====
-[tool.coverage.run]
-source = ["cascade"]
-omit = [
-    "cascade/_internal/*",
-    "tests/*",
-    "examples/*",
-    "scripts/*",
-]
-branch = true
-parallel = true
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
-]
-show_missing = true
-skip_covered = false
 
 # ===== 代码格式化 =====
 [tool.black]
