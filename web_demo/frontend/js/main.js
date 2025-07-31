@@ -15,6 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const overlapSelect = document.getElementById('overlap-select');
     const workersSelect = document.getElementById('workers-select');
     const backendSelect = document.getElementById('backend-select');
+    const compensationSlider = document.getElementById('compensation-slider');
+    const compensationValue = document.getElementById('compensation-value');
     const applySettingsBtn = document.getElementById('apply-settings-btn');
     const statusIndicator = document.getElementById('status-indicator');
     const waveformCanvas = document.getElementById('waveform-canvas');
@@ -75,6 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
     applySettingsBtn.addEventListener('click', applySettings);
     thresholdSlider.addEventListener('input', () => {
         thresholdValue.textContent = thresholdSlider.value;
+    });
+    compensationSlider.addEventListener('input', () => {
+        compensationValue.textContent = compensationSlider.value;
     });
     
     // 文件上传
@@ -151,11 +156,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getSettings() {
         return {
-            vad_threshold: parseFloat(thresholdSlider.value),
+            threshold: parseFloat(thresholdSlider.value),
             chunk_duration_ms: parseInt(chunkDurationSelect.value),
             overlap_ms: parseInt(overlapSelect.value),
             workers: parseInt(workersSelect.value),
-            backend: backendSelect.value
+            backend: backendSelect.value,
+            compensation_ms: parseInt(compensationSlider.value)
         };
     }
     
@@ -229,12 +235,21 @@ document.addEventListener('DOMContentLoaded', () => {
         segments.push(segment);
         const row = document.createElement('tr');
         const duration = (segment.end_ms - segment.start_ms) / 1000;
+        
+        // 延迟补偿显示信息
+        let compensationInfo = '无';
+        if (segment.is_compensated && segment.original_start_ms !== null) {
+            const adjustedMs = segment.original_start_ms - segment.start_ms;
+            compensationInfo = `${adjustedMs.toFixed(0)}ms`;
+        }
+        
         row.innerHTML = `
             <td>${segments.length}</td>
             <td>${(segment.start_ms / 1000).toFixed(2)}s</td>
             <td>${(segment.end_ms / 1000).toFixed(2)}s</td>
             <td>${duration.toFixed(2)}s</td>
             <td>${segment.probability.toFixed(3)}</td>
+            <td>${compensationInfo}</td>
         `;
         segmentsTableBody.appendChild(row);
     }
@@ -258,15 +273,22 @@ document.addEventListener('DOMContentLoaded', () => {
             saveAs(blob, 'vad_segments.json');
         } else if (format === 'csv') {
             let csvContent = 'data:text/csv;charset=utf-8,';
-            csvContent += 'ID,StartTime(s),EndTime(s),Duration(s),Probability\n';
+            csvContent += 'ID,StartTime(s),EndTime(s),Duration(s),Probability,DelayCompensation\n';
             segments.forEach((seg, index) => {
                 const duration = (seg.end_ms - seg.start_ms) / 1000;
+                let compensationInfo = '无';
+                if (seg.is_compensated && seg.original_start_ms !== null) {
+                    const adjustedMs = seg.original_start_ms - seg.start_ms;
+                    compensationInfo = `${adjustedMs.toFixed(0)}ms`;
+                }
+                
                 const row = [
                     index + 1,
                     (seg.start_ms / 1000).toFixed(2),
                     (seg.end_ms / 1000).toFixed(2),
                     duration.toFixed(2),
-                    seg.probability.toFixed(3)
+                    seg.probability.toFixed(3),
+                    compensationInfo
                 ].join(',');
                 csvContent += row + '\n';
             });

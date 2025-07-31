@@ -36,7 +36,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 message = StartRecordingMessage(**message_data)
                 config = message.config or {
                     'threshold': 0.5, 'chunk_duration_ms': 512, 'overlap_ms': 32,
-                    'backend': 'silero', 'sample_rate': 16000, 'channels': 1
+                    'backend': 'silero', 'sample_rate': 16000, 'channels': 1,
+                    'compensation_ms': 0
                 }
                 session = await vad_service.create_session(session_id, config)
                 if session:
@@ -88,7 +89,8 @@ async def stream_vad_results(websocket: WebSocket, session: VADSession):
                 'type': 'vad_result',
                 'is_speech': result.is_speech, 'probability': result.probability,
                 'start_ms': result.start_ms, 'end_ms': result.end_ms,
-                'chunk_id': result.chunk_id, 'processing_time_ms': result.processing_time_ms
+                'chunk_id': result.chunk_id, 'processing_time_ms': result.processing_time_ms,
+                'is_compensated': result.is_compensated, 'original_start_ms': result.original_start_ms
             })
     except Exception as e:
         logger.error(f"流式处理VAD结果时出错: {e}")

@@ -14,11 +14,12 @@ router = APIRouter()
 @router.post("/upload")
 async def upload_audio_file(
     file: UploadFile = File(...),
-    vad_threshold: Optional[float] = Form(0.5),
+    threshold: Optional[float] = Form(0.5),
     chunk_duration_ms: Optional[int] = Form(512),
     overlap_ms: Optional[int] = Form(32),
     workers: Optional[int] = Form(4),
-    backend: Optional[str] = Form("silero")
+    backend: Optional[str] = Form("silero"),
+    compensation_ms: Optional[int] = Form(0)
 ):
     """处理音频文件上传"""
     
@@ -31,11 +32,12 @@ async def upload_audio_file(
         file_path = await file_service.save_uploaded_file(file_content, file.filename)
         
         config = {
-            'threshold': vad_threshold,
+            'threshold': threshold,
             'chunk_duration_ms': chunk_duration_ms,
             'overlap_ms': overlap_ms,
             'workers': workers,
-            'backend': backend
+            'backend': backend,
+            'compensation_ms': compensation_ms
         }
         
         result = await file_service.process_audio_file(file_path, config)

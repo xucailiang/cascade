@@ -26,7 +26,7 @@ import numpy as np
 from pydantic import BaseModel, Field
 
 from cascade.types import (
-    AudioConfig, VADConfig, AudioChunk, VADResult, 
+    AudioConfig, VADConfig, AudioChunk, VADResult,
     CascadeError, ErrorCode, PerformanceMetrics
 )
 from cascade.formats import AudioFormatProcessor
@@ -36,6 +36,7 @@ from cascade.backends import create_vad_backend
 from cascade._internal.thread_pool import VADThreadPool, VADThreadPoolConfig
 from cascade._internal.atomic import AtomicInteger, AtomicFloat, AtomicBoolean
 from cascade._internal.utils import measure_time
+from .delay_compensator import create_delay_compensator, SimpleDelayCompensator
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,11 @@ class VADProcessor:
         self._buffer: Optional[AudioRingBuffer] = None
         self._thread_pool: Optional[VADThreadPool] = None
         self._backend_template: Optional[VADBackend] = None
+        
+        # 延迟补偿器（简化实现）
+        self._delay_compensator: Optional[SimpleDelayCompensator] = create_delay_compensator(
+            config.vad_config.compensation_ms
+        )
         
         # 性能统计
         self._chunks_processed = AtomicInteger(0)
@@ -291,14 +297,18 @@ class VADProcessor:
                 # 4. 并行VAD处理
                 result = await self._thread_pool.process_chunk_async(chunk)
                 
-                # 5. 将结果放入结果队列
+                # 5. 延迟补偿处理（简化实现）
+                if self._delay_compensator:
+                    result = self._delay_compensator.process_result(result)
+                
+                # 6. 将结果放入结果队列
                 try:
                     logger.debug(f"[DEBUG] VAD处理完成，将结果放入队列: 块ID={result.chunk_id}")
                     self._result_queue.put_nowait(result)
                 except asyncio.QueueFull:
                     logger.warning("结果队列满，丢弃VAD结果")
                 
-                # 6. 推进缓冲区读位置
+                # 7. 推进缓冲区读位置
                 advance_size = chunk_size - overlap_size
                 self._buffer.advance_read_position(advance_size)
                 logger.debug(f"[DEBUG] 推进缓冲区读位置 {advance_size} 样本")
@@ -335,6 +345,11 @@ class VADProcessor:
             raise CascadeError("处理器已关闭", ErrorCode.INVALID_STATE)
         
         logger.info("开始流式VAD处理")
+        
+        # 重置延迟补偿器状态（新的音频流开始）
+        if self._delay_compensator:
+            self._delay_compensator.reset()
+            logger.debug(f"延迟补偿器已重置，补偿时长: {self._delay_compensator.get_compensation_ms()}ms")
         
         try:
             # 启动音频输入任务

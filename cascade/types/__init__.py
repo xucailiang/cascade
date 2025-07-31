@@ -335,6 +335,14 @@ class VADConfig(BaseModel):
         ge=10,
         le=200
     )
+    
+    # 延迟补偿配置
+    compensation_ms: int = Field(
+        default=0,
+        description="语音开始延迟补偿时长（毫秒），0表示关闭",
+        ge=0,
+        le=500
+    )
 
     @field_validator('workers')
     @classmethod
@@ -360,6 +368,10 @@ class VADConfig(BaseModel):
         if self.max_silence_duration_ms > self.chunk_duration_ms * 2:
             raise ValueError('最大静音段时长过长')
 
+        # 验证延迟补偿参数
+        if self.compensation_ms > self.chunk_duration_ms:
+            raise ValueError('延迟补偿时长不能超过块时长')
+        
         return self
 
     def get_chunk_samples(self, sample_rate: int) -> int:
@@ -433,6 +445,17 @@ class VADResult(BaseModel):
     metadata: dict[str, Any] | None = Field(
         default=None,
         description="附加元数据"
+    )
+    
+    # 延迟补偿字段
+    is_compensated: bool = Field(
+        default=False,
+        description="是否为延迟补偿后的结果"
+    )
+    original_start_ms: float | None = Field(
+        default=None,
+        description="补偿前的原始开始时间（毫秒）",
+        ge=0.0
     )
 
     @model_validator(mode='after')

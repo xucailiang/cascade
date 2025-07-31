@@ -34,7 +34,8 @@ class VADSession:
                 threshold=self.config.get('threshold', 0.5),
                 chunk_duration_ms=self.config.get('chunk_duration_ms', 512),
                 overlap_ms=self.config.get('overlap_ms', 32),
-                backend=self.config.get('backend', 'silero')
+                backend=self.config.get('backend', 'silero'),
+                compensation_ms=self.config.get('compensation_ms', 0)
             )
             audio_config = AudioConfig(
                 sample_rate=self.config.get('sample_rate', 16000),
@@ -74,7 +75,9 @@ class VADSession:
                 start_ms=result.start_ms,
                 end_ms=result.end_ms,
                 chunk_id=result.chunk_id,
-                processing_time_ms=0
+                processing_time_ms=0,
+                is_compensated=getattr(result, 'is_compensated', False),
+                original_start_ms=getattr(result, 'original_start_ms', None)
             )
 
     async def add_audio_chunk(self, audio_data: List[float]):
@@ -154,7 +157,9 @@ class VADService:
                     'is_speech': result.is_speech,
                     'probability': float(result.probability),
                     'start_ms': result.start_ms,
-                    'end_ms': result.end_ms
+                    'end_ms': result.end_ms,
+                    'is_compensated': getattr(result, 'is_compensated', False),
+                    'original_start_ms': getattr(result, 'original_start_ms', None)
                 })
 
         processing_time = time.time() - start_time

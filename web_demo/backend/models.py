@@ -8,6 +8,7 @@ class VADConfig(BaseModel):
     overlap_ms: int = Field(32, description="重叠大小(毫秒)")
     workers: int = Field(4, ge=1, le=8, description="工作线程数")
     backend: str = Field("silero", description="VAD后端")
+    compensation_ms: int = Field(0, ge=0, le=500, description="延迟补偿时长(毫秒)")
 
     class Config:
         json_schema_extra = {
@@ -16,7 +17,8 @@ class VADConfig(BaseModel):
                 "chunk_duration_ms": 512,
                 "overlap_ms": 32,
                 "workers": 4,
-                "backend": "silero"
+                "backend": "silero",
+                "compensation_ms": 200
             }
         }
 
@@ -35,6 +37,8 @@ class VADResult(BaseModel):
     end_ms: Optional[float] = Field(None, description="结束时间(ms)")
     chunk_id: int = Field(..., description="对应的音频块ID")
     processing_time_ms: float = Field(..., description="处理耗时")
+    is_compensated: bool = Field(False, description="是否应用了延迟补偿")
+    original_start_ms: Optional[float] = Field(None, description="原始开始时间(ms)")
 
 class PerformanceMetrics(BaseModel):
     """性能指标模型"""
@@ -82,6 +86,8 @@ class VADResultMessage(WebSocketMessage):
     end_ms: Optional[float] = Field(None, description="结束时间(ms)")
     chunk_id: int = Field(..., description="对应的音频块ID")
     processing_time_ms: float = Field(..., description="处理耗时")
+    is_compensated: bool = Field(False, description="是否应用了延迟补偿")
+    original_start_ms: Optional[float] = Field(None, description="原始开始时间(ms)")
 
 class PerformanceMetricsMessage(WebSocketMessage):
     """性能指标消息"""
