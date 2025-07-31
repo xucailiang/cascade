@@ -2,17 +2,42 @@ export class WaveformVisualizer {
     constructor(canvasElement, options = {}) {
         this.canvas = canvasElement;
         this.ctx = this.canvas.getContext('2d');
+
+        // 关键修复：确保canvas的内部绘图分辨率与其CSS显示的尺寸一致
+        // 这是解决坐标偏移问题的核心
+        this.canvas.width = this.canvas.clientWidth;
+        this.canvas.height = this.canvas.clientHeight;
+
         this.options = {
             waveColor: '#3498db',
             speechColor: 'rgba(243, 156, 18, 0.5)',
             backgroundColor: '#ffffff',
-            timeScale: 100, // pixels per second
+            timeAxisColor: '#95a5a6',
+            timeAxisFont: '10px Arial',
+            tooltipColor: 'rgba(0, 0, 0, 0.7)',
+            tooltipFont: '12px Arial',
             ...options
         };
         this.audioBuffer = [];
         this.speechSegments = [];
         this.animationFrameId = null;
         this.startTime = 0;
+        this.sampleRate = 16000;
+        
+        this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+        this.canvas.addEventListener('mouseleave', this.handleMouseLeave.bind(this));
+    }
+    
+    handleMouseMove(event) {
+        const rect = this.canvas.getBoundingClientRect();
+        // 确保坐标计算的准确性，将鼠标事件的屏幕坐标转换为Canvas元素的内部坐标
+        const mouseX = event.clientX - rect.left;
+        
+        this.render(mouseX);
+    }
+    
+    handleMouseLeave() {
+        this.render();
     }
 
     addAudioData(data) {
@@ -28,14 +53,14 @@ export class WaveformVisualizer {
         this.render();
     }
 
-    render() {
+    render(mouseX) {
         if (this.animationFrameId) {
             cancelAnimationFrame(this.animationFrameId);
         }
-        this.animationFrameId = requestAnimationFrame(() => this.draw());
+        this.animationFrameId = requestAnimationFrame(() => this.draw(mouseX));
     }
 
-    draw() {
+    draw(mouseX) {
         const { width, height } = this.canvas;
         const halfHeight = height / 2;
         this.ctx.fillStyle = this.options.backgroundColor;
@@ -46,13 +71,10 @@ export class WaveformVisualizer {
         this.ctx.strokeStyle = this.options.waveColor;
         this.ctx.beginPath();
         
-        const samplesToDraw = Math.floor(width * (this.options.sampleRate || 16000) / this.options.timeScale);
-        const startSample = Math.max(0, this.audioBuffer.length - samplesToDraw);
-        const data = this.audioBuffer.slice(startSample);
-
-        for (let i = 0; i < data.length; i++) {
-            const x = (i / data.length) * width;
-            const y = (data[i] * halfHeight) + halfHeight;
+        const pixelsPerSample = width / this.audioBuffer.length;
+        for (let i = 0; i < this.audioBuffer.length; i++) {
+            const x = i * pixelsPerSample;
+            const y = (this.audioBuffer[i] * halfHeight) + halfHeight;
             if (i === 0) {
                 this.ctx.moveTo(x, y);
             } else {
@@ -64,26 +86,65 @@ export class WaveformVisualizer {
         // 高亮语音段
         this.ctx.fillStyle = this.options.speechColor;
         this.speechSegments.forEach(seg => {
-            const segmentStartMs = seg.start_ms - (this.startTime || 0);
-            const segmentEndMs = seg.end_ms - (this.startTime || 0);
-            
-            const startX = (segmentStartMs / 1000) * this.options.timeScale;
-            const endX = (segmentEndMs / 1000) * this.options.timeScale;
-            
-            const relativeStartX = startX - (startSample / (this.options.sampleRate || 16000)) * this.options.timeScale;
-            const widthX = endX - startX;
-
-            if (relativeStartX < width && relativeStartX + widthX > 0) {
-                 this.ctx.fillRect(relativeStartX, 0, widthX, height);
-            }
+            const startX = (seg.start_ms / 1000) * this.sampleRate * pixelsPerSample;
+            const endX = (seg.end_ms / 1000) * this.sampleRate * pixelsPerSample;
+            this.ctx.fillRect(startX, 0, endX - startX, height);
         });
+        
+        // 绘制时间轴和工具提示
+        if (mouseX) {
+            this.drawTimestampLine(mouseX);
+            this.drawTooltip(mouseX);
+        }
+    }
+    
+    drawTimestampLine(mouseX) {
+        const { height } = this.canvas;
+        const time = (mouseX / this.canvas.width) * (this.audioBuffer.length / this.sampleRate);
+        
+        this.ctx.fillStyle = this.options.timeAxisColor;
+        this.ctx.fillRect(mouseX, 0, 1, height);
+        
+        this.ctx.font = this.options.timeAxisFont;
+        this.ctx.fillStyle = this.options.tooltipColor;
+        this.ctx.fillText(`${time.toFixed(2)}s`, mouseX + 5, 10);
+    }
+    
+    drawTooltip(mouseX) {
+        const { width } = this.canvas;
+        const timeMs = (mouseX / width) * (this.audioBuffer.length / this.sampleRate) * 1000;
+
+        const segment = this.speechSegments.find(seg => timeMs >= seg.start_ms && timeMs <= seg.end_ms);
+
+        if (segment) {
+            const duration = (segment.end_ms - segment.start_ms) / 1000;
+            const text = `语音段: ${segment.start_ms.toFixed(0)}ms - ${segment.end_ms.toFixed(0)}ms (时长: ${duration.toFixed(2)}s, 置信度: ${segment.probability.toFixed(3)})`;
+
+            this.ctx.font = this.options.tooltipFont;
+            const textWidth = this.ctx.measureText(text).width;
+
+            let x;
+            // 如果工具提示将超出画布右侧，则将其放置在光标左侧
+            if (mouseX + 15 + textWidth > width) {
+                x = mouseX - 15 - textWidth;
+            } else {
+                x = mouseX + 15;
+            }
+            const y = 25;
+
+            this.ctx.fillStyle = this.options.tooltipColor;
+            this.ctx.fillRect(x - 5, y - 15, textWidth + 10, 20);
+
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.fillText(text, x, y);
+        }
     }
 
     renderFullFile(audioData ,segments) {
         this.clear();
         this.audioBuffer = audioData;
         this.speechSegments = segments;
-        this.startTime = 0; // Для файлов начало всегда 0
+        this.startTime = 0;
         this.render();
     }
 

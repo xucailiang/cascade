@@ -9,6 +9,7 @@ body {
     padding: 1rem;
     height: 200px;
     position: relative;
+    cursor: crosshair;
 }
 
 #waveform-canvas {
