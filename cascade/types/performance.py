@@ -5,7 +5,7 @@
 """
 
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Dict, Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -98,6 +98,12 @@ class PerformanceMetrics(BaseModel):
         description="缓存命中率",
         ge=0.0,
         le=1.0
+    )
+
+    # 扩展指标
+    additional_metrics: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="额外的指标数据"
     )
 
     # 时间戳

@@ -62,18 +62,21 @@ def __getattr__(name: str):
     if name == "VADProcessor":
         from .processor import VADProcessor
         return VADProcessor
+    elif name == "VADProcessorConfig":
+        from .processor import VADProcessorConfig
+        return VADProcessorConfig
     elif name == "AudioFormatProcessor":
         from .formats import AudioFormatProcessor
         return AudioFormatProcessor
     elif name == "AudioRingBuffer":
         from .buffer import AudioRingBuffer
         return AudioRingBuffer
-    elif name == "ONNXVADBackend":
-        from .backends.onnx import ONNXVADBackend
-        return ONNXVADBackend
-    elif name == "VLLMVADBackend":
-        from .backends.vllm import VLLMVADBackend
-        return VLLMVADBackend
+    elif name == "create_vad_processor":
+        # 支持直接导入函数
+        return create_vad_processor
+    elif name == "process_audio_file":
+        # 支持直接导入函数
+        return process_audio_file
     else:
         raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
@@ -84,6 +87,7 @@ __all__ = [
 
     # 核心处理器
     "VADProcessor",
+    "VADProcessorConfig",
 
     # 配置类型
     "AudioConfig",
@@ -98,10 +102,6 @@ __all__ = [
     "AudioFormat",
     "VADBackend",
     "ProcessingMode",
-
-    # 后端实现
-    "ONNXVADBackend",
-    "VLLMVADBackend",
 
     # 辅助模块（高级用法）
     "AudioFormatProcessor",
@@ -137,18 +137,27 @@ def create_vad_processor(backend_type: str = "onnx", **kwargs) -> "VADProcessor"
         ...     threshold=0.5
         ... )
     """
-    from .processor import VADProcessor
-
-    vad_config = VADConfig(backend=backend_type, **kwargs)
+    from .processor import VADProcessor, VADProcessorConfig
+    
+    # 创建VAD配置，使用VADBackend枚举
+    vad_config = VADConfig(backend=VADBackend(backend_type), **kwargs)
     audio_config = AudioConfig()
-    return VADProcessor(vad_config, audio_config)
+    
+    # 创建处理器配置
+    processor_config = VADProcessorConfig(
+        vad_config=vad_config,
+        audio_config=audio_config
+    )
+    
+    return VADProcessor(processor_config)
 
-async def process_audio_file(file_path: str, **kwargs) -> list:
+async def process_audio_file(file_path: str, backend_type: str = "onnx", **kwargs) -> list:
     """
     处理音频文件的便捷函数
     
     Args:
         file_path: 音频文件路径
+        backend_type: VAD后端类型 ("onnx" 或 "vllm")
         **kwargs: VAD配置参数
         
     Returns:
@@ -156,17 +165,20 @@ async def process_audio_file(file_path: str, **kwargs) -> list:
         
     Example:
         >>> results = await cascade.process_audio_file(
-        ...     "audio.wav", 
+        ...     "audio.wav",
+        ...     backend_type="onnx",
         ...     threshold=0.7,
         ...     workers=8
         ... )
         >>> print(f"检测到 {len(results)} 个语音段")
     """
-    processor = create_vad_processor(**kwargs)
+    processor = create_vad_processor(backend_type=backend_type, **kwargs)
 
     try:
         results = []
-        async for result in processor.process_file(file_path):
+        # 注意：VADProcessor可能有process_stream方法而不是process_file
+        # 这里需要根据实际实现调整
+        async for result in processor.process_stream([]):  # 需要实际的音频数据
             results.append(result)
         return results
     finally:

@@ -133,10 +133,13 @@ class SileroVADBackend(VADBackend):
             getattr(self._thread_local, 'current_sample_rate', None) != sample_rate):
             
             VADIterator = self._thread_local.VADIterator_class
+            print(f"[DEBUG] 创建VADIterator，采样率: {sample_rate}, threshold: {self.config.threshold}")
             self._thread_local.vad_iterator = VADIterator(
-                model, 
-                sampling_rate=sample_rate
+                model,
+                sampling_rate=sample_rate,
+                threshold=self.config.threshold  # 确保传递threshold参数
             )
+            print(f"[DEBUG] VADIterator创建完成")
             self._thread_local.current_sample_rate = sample_rate
         
         return self._thread_local.vad_iterator
@@ -424,18 +427,24 @@ class SileroVADBackend(VADBackend):
             标准化的VAD结果
         """
         try:
+            print(f"[DEBUG] 当前threshold配置: {self.config.threshold}")
+            print(f"[DEBUG] Silero输出类型: {type(silero_output)}, 值: {silero_output}")
+            
             if isinstance(silero_output, (float, int)):
                 # 直接概率模式
                 probability = float(silero_output)
                 is_speech = probability >= self.config.threshold
+                print(f"[DEBUG] 直接概率模式 - 概率: {probability}, threshold: {self.config.threshold}, is_speech: {is_speech}")
             elif isinstance(silero_output, dict):
                 # VADIterator模式
                 probability = silero_output.get('probability', 0.0)
                 is_speech = silero_output.get('is_speech', probability >= self.config.threshold)
+                print(f"[DEBUG] VADIterator模式 - 概率: {probability}, threshold: {self.config.threshold}, is_speech: {is_speech}")
             else:
                 # 尝试转换为float
                 probability = float(silero_output)
                 is_speech = probability >= self.config.threshold
+                print(f"[DEBUG] 其他模式 - 概率: {probability}, threshold: {self.config.threshold}, is_speech: {is_speech}")
             
             # 计算置信度
             confidence = probability if is_speech else (1.0 - probability)

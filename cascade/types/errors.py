@@ -44,6 +44,11 @@ class ErrorCode(str, Enum):
     THREAD_ERROR = "E4003"
     RESOURCE_EXHAUSTED = "E4004"
 
+    # 线程池相关错误
+    PROCESSING_FAILED = "E5001"
+    CLEANUP_FAILED = "E5002"
+    INVALID_STATE = "E5003"
+
 class ErrorSeverity(str, Enum):
     """错误严重程度"""
     LOW = "low"           # 低：不影响功能

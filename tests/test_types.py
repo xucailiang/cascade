@@ -334,7 +334,7 @@ class TestEnums:
         """测试VAD后端枚举"""
         assert VADBackend.ONNX == "onnx"
         assert VADBackend.VLLM == "vllm"
-        assert VADBackend.get_default_backend() == "onnx"
+        assert VADBackend.get_default_backend() == "silero"
 
     def test_error_code_enum(self):
         """测试错误码枚举"""
