@@ -46,9 +46,6 @@ class AudioStreamGenerator:
 
             chunk = self.audio_data[start:end]
 
-            # 稍微延迟以观察异步处理效果
-            await asyncio.sleep(0.001)  # 1ms延迟
-
             yield chunk
 
         print(f"🎵 音频流生成完成: {total_chunks}个块")
@@ -255,6 +252,8 @@ async def parallel_vad_demo():
                 print(f"{status} | {time_str} | 概率: {result.probability:.3f} | 块ID: {result.chunk_id}")
 
         processing_time = time.time() - processing_start
+        
+        print(f"实际处理时间: {processing_time:.3f}秒")
 
         # === 5. 并行处理结果分析 ===
         print("=" * 60)
