@@ -418,6 +418,10 @@ class SileroVADBackend(VADBackend):
         1. 直接概率值 (float)
         2. VADIterator输出 (dict)
         
+        延迟补偿逻辑：
+        - 如果配置了compensation_ms > 0，且检测到语音开始，则向前补偿指定毫秒数
+        - 记录原始时间戳和补偿状态，用于测试和调试
+        
         Args:
             silero_output: Silero模型输出
             chunk: 输入音频块
@@ -428,6 +432,7 @@ class SileroVADBackend(VADBackend):
         """
         try:
             print(f"[DEBUG] 当前threshold配置: {self.config.threshold}")
+            print(f"[DEBUG] 延迟补偿配置: {self.config.compensation_ms}ms")
             print(f"[DEBUG] Silero输出类型: {type(silero_output)}, 值: {silero_output}")
             
             if isinstance(silero_output, (float, int)):
@@ -449,6 +454,27 @@ class SileroVADBackend(VADBackend):
             # 计算置信度
             confidence = probability if is_speech else (1.0 - probability)
             
+            # 原始时间戳
+            original_start_ms = chunk.timestamp_ms
+            original_end_ms = chunk.get_end_timestamp_ms()
+            
+            # 延迟补偿逻辑
+            start_ms = original_start_ms
+            end_ms = original_end_ms
+            is_compensated = False
+            
+            if self.config.compensation_ms > 0 and is_speech:
+                # 应用延迟补偿：
+                # 1. 开始时间向前移动（提前检测）
+                compensated_start = original_start_ms - self.config.compensation_ms
+                start_ms = max(0.0, compensated_start)  # 确保不为负数
+                
+                # 2. 结束时间向后移动（延后结束）
+                end_ms = original_end_ms + self.config.compensation_ms
+                
+                is_compensated = True
+                print(f"[DEBUG] 延迟补偿应用: 开始时间 {original_start_ms:.1f}ms -> {start_ms:.1f}ms, 结束时间 {original_end_ms:.1f}ms -> {end_ms:.1f}ms (补偿 {self.config.compensation_ms}ms)")
+            
             # 检查是否进行了块大小适配
             required_size = self._silero_config.get_required_chunk_size(chunk.sample_rate)
             chunk_adapted = len(chunk.data) != required_size
@@ -456,10 +482,12 @@ class SileroVADBackend(VADBackend):
             return VADResult(
                 is_speech=is_speech,
                 probability=probability,
-                start_ms=chunk.timestamp_ms,
-                end_ms=chunk.get_end_timestamp_ms(),
+                start_ms=start_ms,
+                end_ms=end_ms,
                 chunk_id=chunk.sequence_number,
                 confidence=confidence,
+                is_compensated=is_compensated,
+                original_start_ms=original_start_ms if is_compensated else None,
                 metadata={
                     "inference_time_ms": inference_time * 1000,
                     "backend": "silero",
@@ -468,7 +496,9 @@ class SileroVADBackend(VADBackend):
                     "required_chunk_size": required_size,
                     "actual_chunk_size": len(chunk.data),
                     "streaming_mode": getattr(self._silero_config, 'streaming_mode', False),
-                    "model_repo": self._silero_config.repo_or_dir
+                    "model_repo": self._silero_config.repo_or_dir,
+                    "compensation_ms": self.config.compensation_ms,
+                    "compensation_applied": is_compensated
                 }
             )
             

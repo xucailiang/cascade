@@ -62,7 +62,7 @@ poetry add fastapi uvicorn websockets python-multipart
 python web_demo/app.py
 
 # 或使用uvicorn
-uvicorn web_demo.app:app --host 0.0.0.0 --port 8000 --reload
+uvicorn web_demo.backend.app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### 3. 打开浏览器
