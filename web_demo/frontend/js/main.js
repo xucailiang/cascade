@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
         thresholdValue.textContent = thresholdSlider.value;
     });
     compensationSlider.addEventListener('input', () => {
-        compensationValue.textContent = compensationSlider.value;
+        compensationValue.textContent = `${compensationSlider.value}ms`;
     });
     
     // 文件上传
