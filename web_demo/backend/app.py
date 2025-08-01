@@ -1,8 +1,9 @@
 import logging
+
 from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
 
-from .routes import websocket, upload
+from .routes import upload, websocket
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)

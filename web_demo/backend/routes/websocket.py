@@ -1,19 +1,17 @@
+import asyncio
 import json
 import logging
-import asyncio
 import time
-import numpy as np
-from typing import Dict, Any, List, Optional
-from fastapi import WebSocket, WebSocketDisconnect, APIRouter
 import traceback
 import uuid
 
-from ..services.vad_service import vad_service, VADSession
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
 from ..models import (
-    WebSocketMessage, AudioChunkMessage, ConfigUpdateMessage,
-    StartRecordingMessage, StopRecordingMessage, VADResultMessage,
-    PerformanceMetricsMessage, StatusMessage, ErrorMessage
+    AudioChunkMessage,
+    StartRecordingMessage,
 )
+from ..services.vad_service import VADSession, vad_service
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +22,8 @@ async def websocket_endpoint(websocket: WebSocket):
     """WebSocket端点"""
     await websocket.accept()
     session_id = str(uuid.uuid4())
-    session: Optional[VADSession] = None
-    
+    session: VADSession | None = None
+
     try:
         while True:
             data = await websocket.receive_text()
@@ -68,7 +66,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     'message': '录音已停止', 'timestamp': int(time.time() * 1000)
                 })
                 break
-                
+
     except WebSocketDisconnect:
         logger.info(f"WebSocket连接已断开: {session_id}")
     except Exception as e:

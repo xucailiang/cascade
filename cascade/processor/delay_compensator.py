@@ -10,7 +10,6 @@ VAD延迟补偿器
 - 流式友好：完全兼容实时处理
 """
 
-from typing import Optional
 
 from ..types import VADResult
 
@@ -27,7 +26,7 @@ class SimpleDelayCompensator:
     2. 将开始时间戳向前调整指定的补偿时长
     3. 保留原始时间戳用于调试和分析
     """
-    
+
     def __init__(self, compensation_ms: int):
         """
         初始化延迟补偿器
@@ -38,7 +37,7 @@ class SimpleDelayCompensator:
         self.compensation_ms = compensation_ms
         self.enabled = compensation_ms > 0
         self.previous_is_speech = False
-        
+
     def process_result(self, vad_result: VADResult) -> VADResult:
         """
         处理VAD结果，应用延迟补偿
@@ -54,27 +53,27 @@ class SimpleDelayCompensator:
         """
         if not self.enabled:
             return vad_result
-            
+
         # 检测语音开始（简单阈值交叉）
-        speech_started = (not self.previous_is_speech and 
+        speech_started = (not self.previous_is_speech and
                          vad_result.is_speech)
-        
+
         # 更新状态
         self.previous_is_speech = vad_result.is_speech
-        
+
         if speech_started:
             # 语音开始，应用延迟补偿
             compensated_result = vad_result.model_copy()
             compensated_result.original_start_ms = vad_result.start_ms
-            compensated_result.start_ms = max(0.0, 
+            compensated_result.start_ms = max(0.0,
                 vad_result.start_ms - self.compensation_ms)
             compensated_result.is_compensated = True
-            
+
             return compensated_result
-        
+
         # 非语音开始，返回原始结果
         return vad_result
-    
+
     def reset(self) -> None:
         """
         重置补偿器状态
@@ -82,15 +81,15 @@ class SimpleDelayCompensator:
         在处理新的音频流时调用，确保状态清洁。
         """
         self.previous_is_speech = False
-    
+
     def is_enabled(self) -> bool:
         """检查是否启用延迟补偿"""
         return self.enabled
-    
+
     def get_compensation_ms(self) -> int:
         """获取当前补偿时长"""
         return self.compensation_ms
-    
+
     def set_compensation_ms(self, compensation_ms: int) -> None:
         """
         动态调整补偿时长
@@ -102,7 +101,7 @@ class SimpleDelayCompensator:
         self.enabled = compensation_ms > 0
 
 
-def create_delay_compensator(compensation_ms: Optional[int]) -> Optional[SimpleDelayCompensator]:
+def create_delay_compensator(compensation_ms: int | None) -> SimpleDelayCompensator | None:
     """
     创建延迟补偿器的便利函数
     
@@ -114,7 +113,7 @@ def create_delay_compensator(compensation_ms: Optional[int]) -> Optional[SimpleD
     """
     if compensation_ms is None or compensation_ms <= 0:
         return None
-    
+
     return SimpleDelayCompensator(compensation_ms)
 
 

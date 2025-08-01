@@ -6,9 +6,9 @@ VAD后端抽象基类
 
 import threading
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any
 
-from cascade.types import AudioChunk, VADResult, CascadeError, ErrorCode
+from cascade.types import AudioChunk, CascadeError, ErrorCode, VADResult
 
 
 class VADBackend(ABC):
@@ -22,7 +22,7 @@ class VADBackend(ABC):
     - 模型预热和性能优化
     - 线程安全保证
     """
-    
+
     def __init__(self, config: Any):
         """
         初始化VAD后端
@@ -33,17 +33,17 @@ class VADBackend(ABC):
         self._config = config
         self._initialized = False
         self._lock = threading.RLock()  # 递归锁，支持嵌套调用
-        
+
     @property
     def is_initialized(self) -> bool:
         """检查后端是否已初始化"""
         return self._initialized
-    
+
     @property
     def config(self) -> Any:
         """获取后端配置"""
         return self._config
-    
+
     @abstractmethod
     async def initialize(self) -> None:
         """
@@ -58,7 +58,7 @@ class VADBackend(ABC):
             CascadeError: 当初始化失败时
         """
         pass
-    
+
     @abstractmethod
     def process_chunk(self, chunk: AudioChunk) -> VADResult:
         """
@@ -79,7 +79,7 @@ class VADBackend(ABC):
             CascadeError: 当处理失败时
         """
         pass
-    
+
     @abstractmethod
     def warmup(self, dummy_chunk: AudioChunk) -> None:
         """
@@ -94,7 +94,7 @@ class VADBackend(ABC):
             CascadeError: 当预热失败时
         """
         pass
-    
+
     @abstractmethod
     async def close(self) -> None:
         """
@@ -106,7 +106,7 @@ class VADBackend(ABC):
         - 关闭会话连接
         """
         pass
-    
+
     def _ensure_initialized(self) -> None:
         """
         确保后端已初始化
@@ -121,7 +121,7 @@ class VADBackend(ABC):
                 "VAD后端未初始化，请先调用 initialize() 方法",
                 ErrorCode.INITIALIZATION_FAILED
             )
-    
+
     def _validate_chunk(self, chunk: AudioChunk) -> None:
         """
         验证输入音频块的有效性
@@ -137,20 +137,20 @@ class VADBackend(ABC):
                 "音频块不能为空",
                 ErrorCode.INVALID_INPUT
             )
-        
+
         if chunk.chunk_size <= 0:
             raise CascadeError(
                 f"音频块大小无效: {chunk.chunk_size}",
                 ErrorCode.INVALID_INPUT
             )
-        
+
         if chunk.sample_rate <= 0:
             raise CascadeError(
                 f"采样率无效: {chunk.sample_rate}",
                 ErrorCode.INVALID_INPUT
             )
-    
-    def get_backend_info(self) -> Dict[str, Any]:
+
+    def get_backend_info(self) -> dict[str, Any]:
         """
         获取后端信息
         
@@ -162,11 +162,11 @@ class VADBackend(ABC):
             "initialized": self._initialized,
             "config": self._config.__dict__ if hasattr(self._config, '__dict__') else str(self._config)
         }
-    
+
     def __enter__(self):
         """上下文管理器入口"""
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """上下文管理器出口"""
         import asyncio

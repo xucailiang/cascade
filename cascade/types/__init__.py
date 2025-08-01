@@ -335,7 +335,7 @@ class VADConfig(BaseModel):
         ge=10,
         le=200
     )
-    
+
     # 延迟补偿配置
     compensation_ms: int = Field(
         default=0,
@@ -371,7 +371,7 @@ class VADConfig(BaseModel):
         # 验证延迟补偿参数
         if self.compensation_ms > self.chunk_duration_ms:
             raise ValueError('延迟补偿时长不能超过块时长')
-        
+
         return self
 
     def get_chunk_samples(self, sample_rate: int) -> int:
@@ -446,7 +446,7 @@ class VADResult(BaseModel):
         default=None,
         description="附加元数据"
     )
-    
+
     # 延迟补偿字段
     is_compensated: bool = Field(
         default=False,
@@ -676,7 +676,7 @@ class SileroConfig(BackendConfig):
         default=False,
         description="是否使用流式处理模式（VADIterator），默认使用直接模型调用"
     )
-    
+
     @field_validator('opset_version')
     @classmethod
     def validate_opset_version(cls, v):
@@ -690,18 +690,18 @@ class SileroConfig(BackendConfig):
         else:
             raise ValueError('opset_version必须是15或16')
         return v
-    
+
     def get_required_chunk_size(self, sample_rate: int) -> int:
         """获取指定采样率的必需块大小"""
         if sample_rate not in self.chunk_size_samples:
             raise ValueError(f'不支持的采样率: {sample_rate}')
         return self.chunk_size_samples[sample_rate]
-    
+
     def is_chunk_size_compatible(self, sample_rate: int, chunk_size: int) -> bool:
         """检查块大小是否兼容"""
         required_size = self.get_required_chunk_size(sample_rate)
         return chunk_size >= required_size
-    
+
     class Config:
         json_schema_extra = {
             "examples": [

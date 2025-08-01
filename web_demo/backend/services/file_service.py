@@ -1,9 +1,9 @@
+import logging
 import os
 import uuid
-import logging
+from typing import Any
+
 import aiofiles
-from typing import Dict, Any, Optional
-import mimetypes
 
 from .vad_service import vad_service
 
@@ -38,7 +38,7 @@ class FileService:
         return file_path
 
     @staticmethod
-    async def process_audio_file(file_path: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def process_audio_file(file_path: str, config: dict[str, Any] | None = None) -> dict[str, Any]:
         """处理音频文件"""
         try:
             # 获取文件名
@@ -64,7 +64,7 @@ class FileService:
             }
 
     @staticmethod
-    def validate_audio_file(content_type: str, file_size: int) -> Dict[str, Any]:
+    def validate_audio_file(content_type: str, file_size: int) -> dict[str, Any]:
         """验证音频文件"""
         # 检查文件类型
         valid_types = ['audio/wav', 'audio/x-wav', 'audio/mpeg', 'audio/mp3', 'audio/flac', 'audio/ogg']

@@ -22,8 +22,10 @@ Cascade VAD后端实现
     >>> await backend.initialize()
 """
 
+from cascade.types import CascadeError, ErrorCode, VADConfig
+from cascade.types import VADBackend as VADBackendEnum
+
 from .base import VADBackend
-from cascade.types import VADConfig, VADBackend as VADBackendEnum, CascadeError, ErrorCode
 
 
 def create_vad_backend(config: VADConfig) -> VADBackend:
