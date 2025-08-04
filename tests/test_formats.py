@@ -5,7 +5,6 @@ Cascade 音频格式处理模块单元测试
 """
 
 import time
-from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -223,7 +222,7 @@ class TestAudioFormatProcessor:
                 test_data = np.array([100, 200, 0], dtype=np.uint8)
             else:
                 test_data = np.array([100, -100, 0], dtype=np.int16)
-                
+
             result = processor.convert_to_internal_format(
                 test_data, config.format, config.sample_rate
             )

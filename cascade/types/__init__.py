@@ -336,6 +336,14 @@ class VADConfig(BaseModel):
         le=200
     )
 
+    # 延迟补偿配置
+    compensation_ms: int = Field(
+        default=0,
+        description="语音开始延迟补偿时长（毫秒），0表示关闭",
+        ge=0,
+        le=500
+    )
+
     @field_validator('workers')
     @classmethod
     def validate_workers(cls, v):
@@ -359,6 +367,10 @@ class VADConfig(BaseModel):
 
         if self.max_silence_duration_ms > self.chunk_duration_ms * 2:
             raise ValueError('最大静音段时长过长')
+
+        # 验证延迟补偿参数
+        if self.compensation_ms > self.chunk_duration_ms:
+            raise ValueError('延迟补偿时长不能超过块时长')
 
         return self
 
@@ -433,6 +445,17 @@ class VADResult(BaseModel):
     metadata: dict[str, Any] | None = Field(
         default=None,
         description="附加元数据"
+    )
+
+    # 延迟补偿字段
+    is_compensated: bool = Field(
+        default=False,
+        description="是否为延迟补偿后的结果"
+    )
+    original_start_ms: float | None = Field(
+        default=None,
+        description="补偿前的原始开始时间（毫秒）",
+        ge=0.0
     )
 
     @model_validator(mode='after')
@@ -653,7 +676,7 @@ class SileroConfig(BackendConfig):
         default=False,
         description="是否使用流式处理模式（VADIterator），默认使用直接模型调用"
     )
-    
+
     @field_validator('opset_version')
     @classmethod
     def validate_opset_version(cls, v):
@@ -667,18 +690,18 @@ class SileroConfig(BackendConfig):
         else:
             raise ValueError('opset_version必须是15或16')
         return v
-    
+
     def get_required_chunk_size(self, sample_rate: int) -> int:
         """获取指定采样率的必需块大小"""
         if sample_rate not in self.chunk_size_samples:
             raise ValueError(f'不支持的采样率: {sample_rate}')
         return self.chunk_size_samples[sample_rate]
-    
+
     def is_chunk_size_compatible(self, sample_rate: int, chunk_size: int) -> bool:
         """检查块大小是否兼容"""
         required_size = self.get_required_chunk_size(sample_rate)
         return chunk_size >= required_size
-    
+
     class Config:
         json_schema_extra = {
             "examples": [

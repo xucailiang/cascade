@@ -15,7 +15,7 @@ Cascade内部工具模块
 """
 
 from .atomic import AtomicBoolean, AtomicFloat, AtomicInteger, AtomicReference
-from .thread_pool import VADThreadPool, VADThreadPoolConfig, ThreadWorkerStats
+from .thread_pool import ThreadWorkerStats, VADThreadPool, VADThreadPoolConfig
 from .utils import (
     # 线程安全
     ThreadSafeCounter,

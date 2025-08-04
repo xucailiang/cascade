@@ -91,6 +91,11 @@
                                     <option value="onnx">ONNX</option>
                                 </select>
                             </div>
+                            <div class="mb-2">
+                                <label for="compensation-slider" class="form-label">延迟补偿: <span id="compensation-value">0ms</span></label>
+                                <input type="range" class="form-range" id="compensation-slider" min="0" max="500" step="50" value="0">
+                                <small class="form-text text-muted">用于补偿VAD检测延迟，改善语音段开头丢失问题</small>
+                            </div>
                         </div>
                         <button id="apply-settings-btn" class="btn btn-success w-100"><i class="fas fa-check"></i> 应用设置</button>
                     </div>
@@ -125,6 +130,7 @@
                                             <th>结束时间</th>
                                             <th>时长</th>
                                             <th>置信度</th>
+                                            <th>延迟补偿</th>
                                         </tr>
                                     </thead>
                                     <tbody id="segments-table-body">

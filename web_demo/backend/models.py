@@ -1,5 +1,7 @@
-from typing import List, Optional, Dict, Any
+from typing import Any
+
 from pydantic import BaseModel, Field
+
 
 class VADConfig(BaseModel):
     """VAD配置模型"""
@@ -8,6 +10,7 @@ class VADConfig(BaseModel):
     overlap_ms: int = Field(32, description="重叠大小(毫秒)")
     workers: int = Field(4, ge=1, le=8, description="工作线程数")
     backend: str = Field("silero", description="VAD后端")
+    compensation_ms: int = Field(0, ge=0, le=500, description="延迟补偿时长(毫秒)")
 
     class Config:
         json_schema_extra = {
@@ -16,13 +19,14 @@ class VADConfig(BaseModel):
                 "chunk_duration_ms": 512,
                 "overlap_ms": 32,
                 "workers": 4,
-                "backend": "silero"
+                "backend": "silero",
+                "compensation_ms": 200
             }
         }
 
 class AudioChunk(BaseModel):
     """音频数据块模型"""
-    data: List[float] = Field(..., description="音频数据")
+    data: list[float] = Field(..., description="音频数据")
     timestamp: int = Field(..., description="客户端时间戳(ms)")
     sequence: int = Field(..., description="序列号")
     sample_rate: int = Field(16000, description="采样率")
@@ -32,9 +36,11 @@ class VADResult(BaseModel):
     is_speech: bool = Field(..., description="是否为语音")
     probability: float = Field(..., description="置信度")
     start_ms: float = Field(..., description="开始时间(ms)")
-    end_ms: Optional[float] = Field(None, description="结束时间(ms)")
+    end_ms: float | None = Field(None, description="结束时间(ms)")
     chunk_id: int = Field(..., description="对应的音频块ID")
     processing_time_ms: float = Field(..., description="处理耗时")
+    is_compensated: bool = Field(False, description="是否应用了延迟补偿")
+    original_start_ms: float | None = Field(None, description="原始开始时间(ms)")
 
 class PerformanceMetrics(BaseModel):
     """性能指标模型"""
@@ -54,7 +60,7 @@ class WebSocketMessage(BaseModel):
 class AudioChunkMessage(WebSocketMessage):
     """音频数据块消息"""
     type: str = "audio_chunk"
-    data: List[float] = Field(..., description="音频数据")
+    data: list[float] = Field(..., description="音频数据")
     timestamp: int = Field(..., description="客户端时间戳(ms)")
     sequence: int = Field(..., description="序列号")
     sample_rate: int = Field(16000, description="采样率")
@@ -62,12 +68,12 @@ class AudioChunkMessage(WebSocketMessage):
 class ConfigUpdateMessage(WebSocketMessage):
     """配置更新消息"""
     type: str = "config_update"
-    config: Dict[str, Any] = Field(..., description="配置参数")
+    config: dict[str, Any] = Field(..., description="配置参数")
 
 class StartRecordingMessage(WebSocketMessage):
     """开始录音消息"""
     type: str = "start_recording"
-    config: Optional[Dict[str, Any]] = Field(None, description="配置参数")
+    config: dict[str, Any] | None = Field(None, description="配置参数")
 
 class StopRecordingMessage(WebSocketMessage):
     """停止录音消息"""
@@ -79,14 +85,16 @@ class VADResultMessage(WebSocketMessage):
     is_speech: bool = Field(..., description="是否为语音")
     probability: float = Field(..., description="置信度")
     start_ms: float = Field(..., description="开始时间(ms)")
-    end_ms: Optional[float] = Field(None, description="结束时间(ms)")
+    end_ms: float | None = Field(None, description="结束时间(ms)")
     chunk_id: int = Field(..., description="对应的音频块ID")
     processing_time_ms: float = Field(..., description="处理耗时")
+    is_compensated: bool = Field(False, description="是否应用了延迟补偿")
+    original_start_ms: float | None = Field(None, description="原始开始时间(ms)")
 
 class PerformanceMetricsMessage(WebSocketMessage):
     """性能指标消息"""
     type: str = "performance_metrics"
-    metrics: Dict[str, Any] = Field(..., description="性能指标")
+    metrics: dict[str, Any] = Field(..., description="性能指标")
     timestamp: int = Field(..., description="时间戳")
 
 class StatusMessage(WebSocketMessage):
@@ -101,7 +109,7 @@ class ErrorMessage(WebSocketMessage):
     type: str = "error"
     code: str = Field(..., description="错误代码")
     message: str = Field(..., description="错误消息")
-    details: Optional[Dict[str, Any]] = Field(None, description="错误详情")
+    details: dict[str, Any] | None = Field(None, description="错误详情")
 
 class FileUploadResponse(BaseModel):
     """文件上传响应"""
@@ -112,5 +120,5 @@ class FileUploadResponse(BaseModel):
     sample_rate: int = Field(..., description="采样率")
     channels: int = Field(..., description="声道数")
     format: str = Field(..., description="格式")
-    results: Optional[List[Dict[str, Any]]] = Field(None, description="VAD结果")
-    performance: Optional[Dict[str, Any]] = Field(None, description="性能指标")
+    results: list[dict[str, Any]] | None = Field(None, description="VAD结果")
+    performance: dict[str, Any] | None = Field(None, description="性能指标")

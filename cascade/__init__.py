@@ -138,17 +138,17 @@ def create_vad_processor(backend_type: str = "onnx", **kwargs) -> "VADProcessor"
         ... )
     """
     from .processor import VADProcessor, VADProcessorConfig
-    
+
     # 创建VAD配置，使用VADBackend枚举
     vad_config = VADConfig(backend=VADBackend(backend_type), **kwargs)
     audio_config = AudioConfig()
-    
+
     # 创建处理器配置
     processor_config = VADProcessorConfig(
         vad_config=vad_config,
         audio_config=audio_config
     )
-    
+
     return VADProcessor(processor_config)
 
 async def process_audio_file(file_path: str, backend_type: str = "onnx", **kwargs) -> list:

@@ -60,6 +60,8 @@ dependencies = [
     "python-multipart (>=0.0.20,<0.0.21)",
     "aiofiles (>=24.1.0,<25.0.0)",
     "psutil (>=7.0.0,<8.0.0)",
+    "soundfile (>=0.13.1,<0.14.0)",
+    "matplotlib (>=3.10.5,<4.0.0)",
 ]
 
 [project.urls]
