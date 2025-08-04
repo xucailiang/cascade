@@ -715,6 +715,278 @@ class SileroConfig(BackendConfig):
             ]
         }
 
+class DirectVADConfig(BaseModel):
+    """
+    零队列直接VAD配置
+    
+    专为零队列架构设计的VAD配置，支持：
+    - 自动线程数计算和音频块分割
+    - 零拷贝内存优化
+    - 多种音频格式和块大小组合
+    - 完整的边界检查和验证
+    """
+    
+    # 客户端音频配置
+    client_chunk_size: int = Field(
+        description="客户端音频块大小(samples)",
+        gt=0,
+        le=65536  # 最大64K样本
+    )
+    vad_chunk_size: int = Field(
+        description="VAD模型要求的块大小(samples)",
+        gt=0,
+        le=8192   # 最大8K样本
+    )
+    sample_rate: int = Field(
+        default=16000,
+        description="采样率(Hz)",
+        ge=1000,
+        le=48000
+    )
+    
+    # 音频格式配置
+    audio_format: AudioFormat = Field(
+        default=AudioFormat.WAV,
+        description="音频格式"
+    )
+    dtype: str = Field(
+        default="float32",
+        description="数据类型"
+    )
+    channels: int = Field(
+        default=1,
+        description="声道数",
+        ge=1,
+        le=2
+    )
+    
+    # VAD配置
+    threshold: float = Field(
+        default=0.5,
+        description="VAD检测阈值",
+        ge=0.0,
+        le=1.0
+    )
+    backend: VADBackend = Field(
+        default=VADBackend.SILERO,
+        description="VAD后端类型"
+    )
+    
+    # 高级VAD参数（为了与VADConfig兼容）
+    chunk_duration_ms: int = Field(
+        default=32,  # 32ms对应512样本@16kHz
+        description="VAD处理块时长（毫秒）",
+        ge=10,
+        le=200
+    )
+    overlap_duration_ms: int = Field(
+        default=0,
+        description="重叠区域时长（毫秒）",
+        ge=0,
+        le=50
+    )
+    min_speech_duration_ms: int = Field(
+        default=100,
+        description="最小语音段时长（毫秒）",
+        ge=10
+    )
+    min_silence_duration_ms: int = Field(
+        default=500,
+        description="最小静音段时长（毫秒）",
+        ge=50
+    )
+    speech_threshold: float = Field(
+        default=0.5,
+        description="语音检测阈值（与threshold相同）",
+        ge=0.0,
+        le=1.0
+    )
+    compensation_ms: int = Field(
+        default=0,
+        description="语音开始延迟补偿时长（毫秒）",
+        ge=0,
+        le=500
+    )
+    
+    # 高级优化配置
+    enable_zero_copy: bool = Field(
+        default=True,
+        description="是否启用零拷贝优化"
+    )
+    memory_alignment: int = Field(
+        default=64,
+        description="内存对齐字节数",
+        ge=16,
+        le=256
+    )
+    
+    # 性能配置
+    max_threads: int = Field(
+        default=32,
+        description="最大线程数限制",
+        ge=1,
+        le=64
+    )
+    
+    @field_validator('sample_rate')
+    @classmethod
+    def validate_sample_rate(cls, v):
+        """验证采样率"""
+        supported_rates = [8000, 16000, 22050, 44100, 48000]
+        if v not in supported_rates:
+            raise ValueError(f'采样率必须是以下之一: {supported_rates}')
+        return v
+    
+    @field_validator('dtype')
+    @classmethod
+    def validate_dtype(cls, v):
+        """验证数据类型"""
+        supported_dtypes = ['float32', 'float64', 'int16', 'int32']
+        if v not in supported_dtypes:
+            raise ValueError(f'数据类型必须是以下之一: {supported_dtypes}')
+        return v
+    
+    @model_validator(mode='after')
+    def validate_chunk_sizes(self):
+        """验证块大小兼容性"""
+        if self.client_chunk_size <= 0:
+            raise ValueError('客户端块大小必须大于0')
+        if self.vad_chunk_size <= 0:
+            raise ValueError('VAD块大小必须大于0')
+        if self.thread_count > self.max_threads:
+            raise ValueError(f'线程数({self.thread_count})不能超过最大限制({self.max_threads})')
+        if self.client_chunk_size < self.vad_chunk_size:
+            raise ValueError('客户端块大小不能小于VAD块大小')
+        
+        # 验证格式兼容性
+        if self.audio_format == AudioFormat.PCMA:
+            if self.sample_rate not in [8000, 16000]:
+                raise ValueError('PCMA格式仅支持8kHz和16kHz采样率')
+        
+        return self
+    
+    @property
+    def thread_count(self) -> int:
+        """根据音频块大小自动计算线程数（向上取整）"""
+        import math
+        return math.ceil(self.client_chunk_size / self.vad_chunk_size)
+    
+    @property
+    def has_remainder(self) -> bool:
+        """检查是否有余数块需要补0"""
+        return self.client_chunk_size % self.vad_chunk_size != 0
+    
+    @property
+    def remainder_size(self) -> int:
+        """获取余数块的实际大小"""
+        return self.client_chunk_size % self.vad_chunk_size
+    
+    @property
+    def chunk_segments(self) -> list[tuple[int, int, bool]]:
+        """
+        计算每个线程处理的音频段
+        
+        Returns:
+            list[tuple[start, end, needs_padding]]: 开始位置，结束位置，是否需要补0
+        """
+        segments = []
+        for i in range(self.thread_count):
+            start = i * self.vad_chunk_size
+            end = min(start + self.vad_chunk_size, self.client_chunk_size)
+            needs_padding = end < start + self.vad_chunk_size
+            segments.append((start, end, needs_padding))
+        return segments
+    
+    def get_bytes_per_sample(self) -> int:
+        """根据数据类型计算每样本字节数"""
+        type_sizes = {
+            'float32': 4, 'float64': 8,
+            'int16': 2, 'int32': 4, 'int8': 1
+        }
+        return type_sizes.get(self.dtype, 4)
+    
+    def get_chunk_bytes(self) -> int:
+        """计算音频块的字节大小"""
+        return self.client_chunk_size * self.channels * self.get_bytes_per_sample()
+    
+    def validate_audio_compatibility(self, audio_data: Any) -> bool:
+        """验证音频数据与配置的兼容性"""
+        if hasattr(audio_data, 'shape'):
+            # numpy数组
+            expected_samples = self.client_chunk_size * self.channels
+            actual_samples = audio_data.size
+            return actual_samples == expected_samples
+        elif hasattr(audio_data, '__len__'):
+            # 列表或其他序列
+            expected_samples = self.client_chunk_size * self.channels
+            return len(audio_data) == expected_samples
+        return False
+    
+    def calculate_timestamp(self, chunk_sequence: int, thread_id: int) -> float:
+        """计算精确时间戳（毫秒）"""
+        base_time = chunk_sequence * (self.client_chunk_size / self.sample_rate) * 1000
+        segment_offset = thread_id * (self.vad_chunk_size / self.sample_rate) * 1000
+        return base_time + segment_offset
+    
+    def create_segment_view(self, audio_data: Any, thread_id: int) -> tuple[Any, bool]:
+        """
+        为指定线程创建音频段视图（零拷贝优化）
+        
+        Args:
+            audio_data: 完整音频数据
+            thread_id: 线程ID
+            
+        Returns:
+            tuple[segment_data, is_padded]: 音频段数据，是否经过补0
+        """
+        import numpy as np
+        
+        if thread_id >= self.thread_count:
+            raise ValueError(f"线程ID({thread_id})超出范围(0-{self.thread_count-1})")
+        
+        start, end, needs_padding = self.chunk_segments[thread_id]
+        
+        # 确保输入是numpy数组
+        if not isinstance(audio_data, np.ndarray):
+            audio_data = np.asarray(audio_data, dtype=self.dtype)
+        
+        if self.enable_zero_copy and not needs_padding:
+            # 零拷贝：直接返回内存视图
+            return audio_data[start:end], False
+        else:
+            # 需要补0或不支持零拷贝：创建新数组
+            segment = np.zeros(self.vad_chunk_size, dtype=audio_data.dtype)
+            actual_size = end - start
+            segment[:actual_size] = audio_data[start:end]
+            return segment, needs_padding
+    
+    class Config:
+        extra = "forbid"
+        use_enum_values = True
+        json_schema_extra = {
+            "examples": [
+                {
+                    "client_chunk_size": 4096,
+                    "vad_chunk_size": 512,
+                    "sample_rate": 16000,
+                    "audio_format": "wav",
+                    "dtype": "float32",
+                    "threshold": 0.5,
+                    "backend": "silero",
+                    "enable_zero_copy": True
+                },
+                {
+                    "client_chunk_size": 3000,  # 不能整除的例子
+                    "vad_chunk_size": 512,
+                    "sample_rate": 8000,
+                    "audio_format": "pcma",
+                    "dtype": "int16",
+                    "threshold": 0.6,
+                    "backend": "onnx"
+                }
+            ]
+        }
+
 # === 通用状态类型 ===
 
 class Status(str, Enum):
@@ -755,7 +1027,7 @@ __all__ = [
     "VADConfig", "VADResult", "VADSegment",
 
     # 后端配置
-    "BackendConfig", "ONNXConfig", "VLLMConfig", "SileroConfig",
+    "BackendConfig", "ONNXConfig", "VLLMConfig", "SileroConfig", "DirectVADConfig",
 
     # 错误处理类型
     "ErrorCode", "ErrorSeverity", "CascadeError", "AudioFormatError",
