@@ -650,8 +650,8 @@ class SileroConfig(BackendConfig):
         description="VADIterator是否返回时间戳（秒）"
     )
     streaming_mode: bool = Field(
-        default=False,
-        description="是否使用流式处理模式（VADIterator），默认使用直接模型调用"
+        default=True,
+        description="是否使用流式处理模式（VADIterator），默认使用流式处理"
     )
     
     @field_validator('opset_version')
@@ -718,6 +718,150 @@ from .errors import (
 from .performance import BufferStatus, PerformanceMetrics, SystemStatus
 from .version import CompatibilityInfo, VersionInfo
 
+# === Cascade简化配置和结果类型 ===
+
+class CascadeConfig(BaseModel):
+    """
+    Cascade统一配置 - 极简版本
+    用户只需配置必要的音频和VAD参数
+    """
+    # 音频配置 - 必需
+    sample_rate: int = Field(
+        default=16000,
+        description="音频采样率（Hz）",
+        ge=1000,
+        le=48000
+    )
+    
+    # VAD配置 - 必需
+    vad_backend: str = Field(
+        default="silero",
+        description="VAD后端类型"
+    )
+    
+    # 可选参数
+    vad_threshold: float = Field(
+        default=0.5,
+        description="VAD检测阈值",
+        ge=0.0,
+        le=1.0
+    )
+    
+    @field_validator('sample_rate')
+    @classmethod
+    def validate_sample_rate(cls, v):
+        """验证采样率"""
+        supported_rates = [8000, 16000, 22050, 44100, 48000]
+        if v not in supported_rates:
+            raise ValueError(f'采样率必须是以下之一: {supported_rates}')
+        return v
+    
+    @field_validator('vad_backend')
+    @classmethod
+    def validate_vad_backend(cls, v):
+        """验证VAD后端"""
+        supported_backends = ["silero", "onnx"]
+        if v not in supported_backends:
+            raise ValueError(f'VAD后端必须是以下之一: {supported_backends}')
+        return v
+    
+    def to_audio_config(self) -> AudioConfig:
+        """转换为内部AudioConfig"""
+        return AudioConfig(
+            sample_rate=self.sample_rate,
+            format=AudioFormat.WAV,
+            channels=1,
+            dtype="float32"
+        )
+    
+    def to_vad_config(self) -> VADConfig:
+        """转换为内部VADConfig - 自动填充默认值"""
+        return VADConfig(
+            backend=VADBackend.SILERO if self.vad_backend == "silero" else VADBackend.ONNX,
+            threshold=self.vad_threshold,
+            # 其他参数使用合理默认值，支持1:1:1绑定
+            workers=1,  # 1:1:1绑定只需要1个worker
+            chunk_duration_ms=500,  # 内部默认值
+            overlap_ms=16,
+            processing_mode=ProcessingMode.STREAMING
+        )
+        
+    class Config:
+        extra = "forbid"
+        json_schema_extra = {
+            "examples": [
+                {
+                    "sample_rate": 16000,
+                    "vad_backend": "silero",
+                    "vad_threshold": 0.5
+                }
+            ]
+        }
+
+class CascadeVADResult(BaseModel):
+    """
+    Cascade VAD结果 - 包含原始音频和检测结果
+    完整满足用户需求的输出格式
+    """
+    # 原始音频数据
+    audio_data: Any = Field(
+        description="原始音频块数据（numpy array）"
+    )
+    
+    # VAD检测结果
+    speech_probability: float = Field(
+        description="语音概率",
+        ge=0.0,
+        le=1.0
+    )
+    is_speech: bool = Field(
+        description="是否检测到语音"
+    )
+    
+    # 时间信息
+    start_time: float = Field(
+        description="开始时间（秒）",
+        ge=0.0
+    )
+    end_time: float = Field(
+        description="结束时间（秒）",
+        ge=0.0
+    )
+    
+    # 可选的详细信息
+    confidence: float = Field(
+        default=0.0,
+        description="检测置信度",
+        ge=0.0,
+        le=1.0
+    )
+    
+    @model_validator(mode='after')
+    def validate_time_order(self):
+        """验证时间顺序"""
+        if self.end_time <= self.start_time:
+            raise ValueError('结束时间必须大于开始时间')
+        return self
+    
+    def get_duration(self) -> float:
+        """获取音频块时长（秒）"""
+        return self.end_time - self.start_time
+        
+    class Config:
+        arbitrary_types_allowed = True
+        extra = "allow"
+        json_schema_extra = {
+            "examples": [
+                {
+                    "speech_probability": 0.85,
+                    "is_speech": True,
+                    "start_time": 0.0,
+                    "end_time": 3.0,
+                    "confidence": 0.9
+                }
+            ]
+        }
+
 # === 导出的类型定义 ===
 
 __all__ = [
@@ -733,6 +877,9 @@ __all__ = [
 
     # 后端配置
     "BackendConfig", "ONNXConfig", "VLLMConfig", "SileroConfig",
+
+    # Cascade简化类型
+    "CascadeConfig", "CascadeVADResult",
 
     # 错误处理类型
     "ErrorCode", "ErrorSeverity", "CascadeError", "AudioFormatError",

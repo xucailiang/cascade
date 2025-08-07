@@ -249,33 +249,70 @@ class SileroVADBackend(VADBackend):
                 # 流式处理模式：使用VADIterator
                 print(f"使用silero-vad的VADIterator进行流式处理，采样率: {chunk.sample_rate}")
                 vad_iterator = self._get_thread_vad_iterator(chunk.sample_rate)
-                result = vad_iterator(
-                    audio_tensor,
-                    return_seconds=self._silero_config.return_seconds
-                )
+                
+                # 检查是否是音频流结束的空块
+                is_empty_chunk = False
+                if isinstance(chunk.data, np.ndarray) and len(chunk.data) > 0:
+                    # 检查是否全为0（空音频块，用于触发语音结束事件）
+                    if np.all(chunk.data == 0) and hasattr(self._thread_local, 'speech_active') and self._thread_local.speech_active:
+                        print(f"检测到空音频块，强制生成语音结束事件")
+                        # 强制生成语音结束事件
+                        result = {'end': chunk.start_frame, 'is_speech': False, 'probability': 0.0}
+                        is_empty_chunk = True
+                
+                # 如果不是空块，正常处理
+                if not is_empty_chunk:
+                    result = vad_iterator(
+                        audio_tensor,
+                        return_seconds=self._silero_config.return_seconds
+                    )
+                
                 # result: {'start': 11808} 表示语音开始的时间戳
                 # result: {'end': 82400} 表示语音结束的时间戳
                 
-                print(f"silero-vad的原始推理结果:{result}")
+                print(f"silero-vad的原始推理结果:::{result}")
                 
                 # 保存原始结果到线程本地存储，供测试脚本使用
                 self._thread_local.last_vad_result = result
                 
                 if isinstance(result, dict) and result:
                     # VADIterator返回语音段边界信息
-                    if 'start' in result or 'end' in result:
-                        # 边界事件，概率设为1.0表示检测到边界
+                    if 'start' in result:
+                        # 语音开始事件，设置为语音
                         probability = 1.0
+                        result['is_speech'] = True
+                        result['probability'] = 1.0
+                        # 记录当前处于语音状态
+                        self._thread_local.speech_active = True
+                        print(f"[DEBUG] 检测到语音开始事件，设置speech_active=True")
+                    elif 'end' in result:
+                        # 语音结束事件，设置为非语音
+                        probability = 0.0
+                        result['is_speech'] = False
+                        result['probability'] = 0.0
+                        # 记录当前不处于语音状态
+                        self._thread_local.speech_active = False
+                        print(f"[DEBUG] 检测到语音结束事件，设置speech_active=False")
                     else:
                         probability = result.get('probability', 0.0)
                     speech_info = result
                 else:
                     # 空结果表示当前块无语音边界变化
-                    probability = 0.0
-                    speech_info = None
+                    # 但我们需要根据当前的语音状态返回适当的概率值
+                    if hasattr(self._thread_local, 'speech_active') and self._thread_local.speech_active:
+                        # 如果当前处于语音状态，返回高概率值
+                        probability = 0.9  # 使用较高的概率值表示持续的语音
+                        speech_info = {'is_speech': True, 'probability': probability}
+                        print(f"[DEBUG] 语音持续中，返回概率值: {probability}")
+                    else:
+                        # 如果当前不处于语音状态，返回低概率值
+                        probability = 0.0
+                        speech_info = None
             else:
                 # 直接概率模式：直接调用模型
-                probability = float(model(audio_tensor, chunk.sample_rate).item())
+                print(f"使用silero-vad的直接推理模式，采样率: {chunk.sample_rate}")
+                result = model(audio_tensor, chunk.sample_rate)
+                probability = float(result.item())
                 speech_info = None
             
             inference_time = time.time() - start_time

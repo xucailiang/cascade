@@ -1,25 +1,37 @@
 """
-Cascade: 高性能异步并行VAD处理库
+Cascade: 高性能低延迟VAD处理库
 
 Cascade是一个专为语音活动检测(VAD)设计的高性能、低延迟音频流处理库。
-通过并行处理技术和优化的架构设计，显著降低VAD处理延迟，同时保证检测结果的准确性。
+采用极简的1:1:1绑定架构，确保有状态VAD模型的上下文连续性，同时提供简洁的API。
 
 核心特性:
-- 并行处理: 多线程VAD实例并行处理音频块
-- 重叠处理: 通过块间重叠区域解决边界问题
+- 1:1:1绑定架构: 1个Cascade实例 = 1个VAD Backend = 1个处理会话
+- 状态连续性: 确保silero-vad等有状态模型的上下文连续性
+- 极简配置: 只需配置3个核心参数(sample_rate, vad_backend, vad_threshold)
+- 用户控制: 用户完全控制音频块大小，系统直接处理
+- 完整输出: 返回原始音频块+VAD检测结果的完整输出
 - 异步设计: 基于asyncio的高并发处理能力
-- 低延迟: 优化的缓冲区和处理流程
-- 多格式支持: WAV和PCMA格式，16kHz和8kHz采样率
-- 多后端支持: ONNX和VLLM两种VAD后端
-- 零拷贝设计: 最小化内存复制，提高处理效率
+- 低延迟: 优化的缓冲区和处理流程，目标<5ms P99延迟
+- 多后端支持: Silero VAD和ONNX两种后端
 
-快速开始:
+快速开始 (新架构 - 推荐):
     >>> import cascade
-    >>> # 零配置使用
-    >>> results = await cascade.process_audio_file("audio.wav")
-    >>> print(f"检测到 {len(results)} 个语音段")
+    >>> # 极简使用 - 只需3个参数
+    >>> async with cascade.Cascade(cascade.CascadeConfig(
+    ...     sample_rate=16000,
+    ...     vad_backend="silero"
+    ... )) as detector:
+    ...     async for result in detector.process_audio_stream(audio_stream):
+    ...         if result.is_speech:
+    ...             print(f"检测到语音: {result.speech_probability:.2f}")
     
-    >>> # 高级配置
+    >>> # 便捷函数
+    >>> detector = await cascade.create_cascade(sample_rate=16000, vad_backend="silero")
+    >>> result = await detector.process_audio_chunk(audio_data)
+    >>> print(f"语音概率: {result.speech_probability}")
+
+兼容性API (旧架构):
+    >>> # 继续支持原有VADProcessor API
     >>> processor = cascade.VADProcessor(
     ...     vad_config=cascade.VADConfig(workers=8, threshold=0.7),
     ...     audio_config=cascade.AudioConfig(sample_rate=16000)
@@ -41,25 +53,35 @@ from .types import (
     AudioChunk,
     # 配置类型
     AudioConfig,
+    VADConfig,
+    # 新架构配置类型
+    CascadeConfig,
+    CascadeVADResult,
     # 枚举类型
     AudioFormat,
-    AudioFormatError,
-    BufferError,
+    VADBackend,
+    ProcessingMode,
+    # 结果类型
+    VADResult,
+    PerformanceMetrics,
     # 异常类型
     CascadeError,
-    PerformanceMetrics,
-    ProcessingMode,
-    VADBackend,
-    VADConfig,
+    AudioFormatError,
+    BufferError,
     VADProcessingError,
-    VADResult,
 )
 
 
 # 主要组件导入 (延迟导入以避免循环依赖)
 def __getattr__(name: str):
     """延迟导入主要组件"""
-    if name == "VADProcessor":
+    if name == "Cascade":
+        from .cascade import Cascade
+        return Cascade
+    elif name == "create_cascade":
+        from .cascade import create_cascade
+        return create_cascade
+    elif name == "VADProcessor":
         from .processor import VADProcessor
         return VADProcessor
     elif name == "VADProcessorConfig":
@@ -85,11 +107,19 @@ __all__ = [
     # 版本信息
     "__version__",
 
-    # 核心处理器
+    # 核心处理器 (新架构 - 推荐)
+    "Cascade",
+    "create_cascade",
+
+    # 配置类型 (新架构)
+    "CascadeConfig",
+    "CascadeVADResult",
+
+    # 兼容性处理器 (旧架构)
     "VADProcessor",
     "VADProcessorConfig",
 
-    # 配置类型
+    # 共享配置类型
     "AudioConfig",
     "VADConfig",
 
@@ -114,8 +144,8 @@ __all__ = [
     "VADProcessingError",
 
     # 便捷函数
-    "create_vad_processor",
-    "process_audio_file",
+    "create_vad_processor",  # 旧架构
+    "process_audio_file",    # 旧架构
 ]
 
 # 便捷工厂函数
