@@ -14,12 +14,13 @@ Cascade核心类型系统
 - 完整的验证规则
 - 自动文档生成
 """
-
 import sys
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 
+import numpy as np
+from numpy.typing import NDArray
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 # === 基础枚举类型 ===
@@ -338,7 +339,7 @@ class VADConfig(BaseModel):
 
     # 延迟补偿配置
     compensation_ms: int = Field(
-        default=0,
+        default=30,
         description="语音开始延迟补偿时长（毫秒），0表示关闭",
         ge=0,
         le=500
@@ -396,13 +397,15 @@ class VADConfig(BaseModel):
                 }
             ]
         }
-
 class VADResult(BaseModel):
     """
     VAD检测结果
     
     包含语音活动检测的所有相关信息。
     """
+    audio_chunk: NDArray[np.float32] = Field(
+        description="当前检测的音频块",
+    )
     is_speech: bool = Field(
         description="是否检测到语音"
     )
@@ -412,10 +415,12 @@ class VADResult(BaseModel):
         le=1.0
     )
     start_ms: float = Field(
+        default=0.0,
         description="开始时间（毫秒）",
         ge=0.0
     )
     end_ms: float = Field(
+        default=0.0,
         description="结束时间（毫秒）",
         ge=0.0
     )
@@ -449,7 +454,7 @@ class VADResult(BaseModel):
 
     # 延迟补偿字段
     is_compensated: bool = Field(
-        default=False,
+        default=True,
         description="是否为延迟补偿后的结果"
     )
     original_start_ms: float | None = Field(
@@ -653,7 +658,7 @@ class SileroConfig(BackendConfig):
         le=16
     )
     repo_or_dir: str = Field(
-        default="onnx-community/silero-vad",
+        default="snakers4/silero-vad",
         description="模型仓库或目录（torch.hub模式）"
     )
     model_name: str = Field(
@@ -671,10 +676,6 @@ class SileroConfig(BackendConfig):
     return_seconds: bool = Field(
         default=False,
         description="VADIterator是否返回时间戳（秒）"
-    )
-    streaming_mode: bool = Field(
-        default=False,
-        description="是否使用流式处理模式（VADIterator），默认使用直接模型调用"
     )
 
     @field_validator('opset_version')

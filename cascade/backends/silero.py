@@ -5,11 +5,13 @@ Silero VAD后端实现
 遵循silero-vad的实际API使用方式。
 """
 
+import logging
 import threading
 import time
 from typing import Any
 
 import numpy as np
+import torch
 
 from cascade.types import (
     AudioChunk,
@@ -24,6 +26,7 @@ from cascade.types import (
 
 from .base import VADBackend
 
+logger = logging.getLogger(__name__)
 
 class SileroVADBackend(VADBackend):
     """
@@ -101,7 +104,7 @@ class SileroVADBackend(VADBackend):
                 raise ModelLoadError(
                     "silero_vad",
                     f"创建Silero模型失败: {str(e)}"
-                )
+                ) from e
 
         return self._thread_local.model
 
@@ -134,13 +137,13 @@ class SileroVADBackend(VADBackend):
             getattr(self._thread_local, 'current_sample_rate', None) != sample_rate):
 
             VADIterator = self._thread_local.VADIterator_class
-            print(f"[DEBUG] 创建VADIterator，采样率: {sample_rate}, threshold: {self.config.threshold}")
+            logger.info(f"[DEBUG] 创建VADIterator，采样率: {sample_rate}, threshold: {self.config.threshold}")
             self._thread_local.vad_iterator = VADIterator(
                 model,
                 sampling_rate=sample_rate,
                 threshold=self.config.threshold  # 确保传递threshold参数
             )
-            print("[DEBUG] VADIterator创建完成")
+            logger.info("[DEBUG] VADIterator创建完成")
             self._thread_local.current_sample_rate = sample_rate
 
         return self._thread_local.vad_iterator
@@ -169,7 +172,7 @@ class SileroVADBackend(VADBackend):
                         raise CascadeError(
                             f"silero-vad pip包不可用且torch.hub也无法访问: {e}",
                             ErrorCode.BACKEND_UNAVAILABLE
-                        )
+                        ) from e
             else:
                 import torch
                 try:
@@ -178,7 +181,7 @@ class SileroVADBackend(VADBackend):
                     raise CascadeError(
                         f"无法访问Silero模型仓库: {e}",
                         ErrorCode.BACKEND_UNAVAILABLE
-                    )
+                    ) from e
 
             # 预计算期望的块大小
             for sample_rate in [8000, 16000]:
@@ -188,7 +191,7 @@ class SileroVADBackend(VADBackend):
                     )
 
             # 创建测试模型实例验证可用性
-            test_model = self._get_thread_model()
+            self._get_thread_model()
 
             self._initialized = True
 
@@ -200,14 +203,33 @@ class SileroVADBackend(VADBackend):
             raise CascadeError(
                 f"Silero VAD依赖不可用: {e}。请安装: pip install silero-vad 或确保torch可用",
                 ErrorCode.BACKEND_UNAVAILABLE
-            )
+            ) from e
         except Exception as e:
-            if isinstance(e, (CascadeError, ModelLoadError)):
+            if isinstance(e, CascadeError | ModelLoadError):
                 raise
             raise ModelLoadError(
                 "silero_vad",
                 f"初始化失败: {str(e)}"
-            )
+            ) from e
+    def process_audio(self, audio_file: str):
+        """
+        直接处理上传的文件
+        Example:
+        wav = read_audio('/home/justin/workspace/cascade/新能源汽车和燃油车相比有哪些优缺点？.wav', sampling_rate=SAMPLING_RATE)
+        speech_probs = []
+        window_size_samples = 512 if SAMPLING_RATE == 16000 else 256
+        for i in range(0, len(wav), window_size_samples):
+            chunk = wav[i: i+window_size_samples]
+            if len(chunk) < window_size_samples:
+                break
+            speech_prob = model(chunk, SAMPLING_RATE).item()
+            speech_probs.append(speech_prob)
+        model.reset_states() # reset model states after each audio
+
+        print(speech_probs[:10]) # first 10 chunks predicts
+        Result: [0.01201203465461731, 0.017883896827697754, 0.018267333507537842, 0.012380152940750122, 0.012167781591415405, 0.011264562606811523, 0.006922483444213867, 0.00342521071434021, 0.007708489894866943, 0.008558869361877441]
+        """
+        pass
 
     def process_chunk(self, chunk: AudioChunk) -> VADResult:
         """
@@ -239,44 +261,42 @@ class SileroVADBackend(VADBackend):
             start_time = time.time()
 
             # 将numpy数组转换为PyTorch tensor（silero-vad需要torch tensor）
-            import torch
             if isinstance(audio_data, np.ndarray):
                 audio_tensor = torch.from_numpy(audio_data.copy())
             else:
                 audio_tensor = audio_data
 
-            # 根据配置选择推理模式
-            if hasattr(self._silero_config, 'streaming_mode') and self._silero_config.streaming_mode:
-                # 流式处理模式：使用VADIterator
-                print(f"使用silero-vad的VADIterator进行流式处理，采样率: {chunk.sample_rate}")
-                vad_iterator = self._get_thread_vad_iterator(chunk.sample_rate)
-                result = vad_iterator(
-                    audio_tensor,
-                    return_seconds=self._silero_config.return_seconds
-                )
-                # result: {'start': 11808} 表示语音开始的时间戳
-                # result: {'end': 82400} 表示语音结束的时间戳
+            logger.info(f"使用silero-vad的VADIterator进行流式处理，采样率: {chunk.sample_rate}")
+            vad_iterator = self._get_thread_vad_iterator(chunk.sample_rate)
+            result = vad_iterator(
+                audio_tensor,
+                return_seconds=self._silero_config.return_seconds
+            )
+            ##### result“时间戳”是用秒做单位（True）还是继续用采样点序号做单位（False，默认）
+            ### return_seconds=False
+            # result: {'start': 11808}
+            # result: {'end': 82400}
 
-                print(f"silero-vad的原始推理结果:{result}")
+            ### return_seconds=True
+            # result: {'start': 0.8}
+            # result: {'end': 5.0}
 
-                # 保存原始结果到线程本地存储，供测试脚本使用
-                self._thread_local.last_vad_result = result
+            logger.info(f"silero-vad的原始推理结果:{result}")
 
-                if isinstance(result, dict) and result:
-                    # VADIterator返回语音段边界信息
-                    if 'start' in result or 'end' in result:
-                        # 边界事件，概率设为1.0表示检测到边界
-                        probability = 1.0
-                    else:
-                        probability = result.get('probability', 0.0)
-                    speech_info = result
+            # 保存原始结果到线程本地存储，供测试脚本使用
+            self._thread_local.last_vad_result = result
+
+            if result:
+                # VADIterator返回语音段边界信息
+                if 'start' in result or 'end' in result:
+                    # 边界事件，概率设为1.0表示检测到边界
+                    probability = 1.0
                 else:
-                    # 空结果表示当前块无语音边界变化
-                    probability = 0.0
-                    speech_info = None
+                    probability = result.get('probability', 0.0)
+                speech_info = result
             else:
-                # 直接概率模式：直接调用模型
-                probability = float(model(audio_tensor, chunk.sample_rate).item())
+                # 空结果表示当前块无语音边界变化
+                probability = 0.0
                 speech_info = None
 
             inference_time = time.time() - start_time
@@ -377,10 +397,6 @@ class SileroVADBackend(VADBackend):
             required_size = self._silero_config.get_required_chunk_size(chunk.sample_rate)
             audio_data = np.asarray(chunk.data, dtype=np.float32)
 
-            # 确保是一维数组
-            if audio_data.ndim > 1:
-                audio_data = audio_data.flatten()
-
             current_size = len(audio_data)
 
             if current_size == required_size:
@@ -432,86 +448,53 @@ class SileroVADBackend(VADBackend):
             标准化的VAD结果
         """
         try:
-            print(f"[DEBUG] 当前threshold配置: {self.config.threshold}")
-            print(f"[DEBUG] 延迟补偿配置: {self.config.compensation_ms}ms")
-            print(f"[DEBUG] Silero输出类型: {type(silero_output)}, 值: {silero_output}")
+            logger.info(f"[DEBUG] 当前threshold配置: {self.config.threshold}")
+            logger.info(f"[DEBUG] 延迟补偿配置: {self.config.compensation_ms}ms")
+            logger.info(f"[DEBUG] Silero输出类型: {type(silero_output)}, 值: {silero_output}")
 
             if isinstance(silero_output, (float, int)):
                 # 直接概率模式
                 probability = float(silero_output)
                 is_speech = probability >= self.config.threshold
-                print(f"[DEBUG] 直接概率模式 - 概率: {probability}, threshold: {self.config.threshold}, is_speech: {is_speech}")
+                logger.info(f"[DEBUG] 直接概率模式 - 概率: {probability}, threshold: {self.config.threshold}, is_speech: {is_speech}")
             elif isinstance(silero_output, dict):
                 # VADIterator模式
-                probability = silero_output.get('probability', 0.0)
+                probability = silero_output.get('probability', 1.0)
+                start_speech = silero_output["start"] if "start" in silero_output else False
+                end_speechj = silero_output["end"] if "end" in silero_output else False
                 is_speech = silero_output.get('is_speech', probability >= self.config.threshold)
-                print(f"[DEBUG] VADIterator模式 - 概率: {probability}, threshold: {self.config.threshold}, is_speech: {is_speech}")
+                logger.info(f"[DEBUG] VADIterator模式 - 概率: {probability}, threshold: {self.config.threshold}, is_speech: {is_speech}")
             else:
                 # 尝试转换为float
                 probability = float(silero_output)
                 is_speech = probability >= self.config.threshold
-                print(f"[DEBUG] 其他模式 - 概率: {probability}, threshold: {self.config.threshold}, is_speech: {is_speech}")
-
-            # 计算置信度
-            confidence = probability if is_speech else (1.0 - probability)
-
-            # 原始时间戳
-            original_start_ms = chunk.timestamp_ms
-            original_end_ms = chunk.get_end_timestamp_ms()
-
-            # 延迟补偿逻辑
-            start_ms = original_start_ms
-            end_ms = original_end_ms
-            is_compensated = False
-
-            if self.config.compensation_ms > 0 and is_speech:
-                # 应用延迟补偿：
-                # 1. 开始时间向前移动（提前检测）
-                compensated_start = original_start_ms - self.config.compensation_ms
-                start_ms = max(0.0, compensated_start)  # 确保不为负数
-
-                # 2. 结束时间向后移动（延后结束）
-                end_ms = original_end_ms + self.config.compensation_ms
-
-                is_compensated = True
-                print(f"[DEBUG] 延迟补偿应用: 开始时间 {original_start_ms:.1f}ms -> {start_ms:.1f}ms, 结束时间 {original_end_ms:.1f}ms -> {end_ms:.1f}ms (补偿 {self.config.compensation_ms}ms)")
-
-            # 检查是否进行了块大小适配
-            required_size = self._silero_config.get_required_chunk_size(chunk.sample_rate)
-            chunk_adapted = len(chunk.data) != required_size
+                logger.info(f"[DEBUG] 其他模式 - 概率: {probability}, threshold: {self.config.threshold}, is_speech: {is_speech}")
 
             return VADResult(
+                audio_chunk=chunk.data,
                 is_speech=is_speech,
                 probability=probability,
-                start_ms=start_ms,
-                end_ms=end_ms,
                 chunk_id=chunk.sequence_number,
-                confidence=confidence,
-                is_compensated=is_compensated,
-                original_start_ms=original_start_ms if is_compensated else None,
                 metadata={
                     "inference_time_ms": inference_time * 1000,
                     "backend": "silero",
                     "mode": "onnx" if self._silero_config.onnx else "pytorch",
-                    "chunk_adapted": chunk_adapted,
-                    "required_chunk_size": required_size,
                     "actual_chunk_size": len(chunk.data),
                     "streaming_mode": getattr(self._silero_config, 'streaming_mode', False),
                     "model_repo": self._silero_config.repo_or_dir,
                     "compensation_ms": self.config.compensation_ms,
-                    "compensation_applied": is_compensated
                 }
             )
 
         except Exception as e:
             raise VADProcessingError(
-                f"Silero输出后处理失败: {str(e)}",
+                f"Silero输出后处理失败: {e}",
                 ErrorCode.RESULT_VALIDATION_FAILED,
                 context={
                     "output_type": type(silero_output).__name__,
-                    "output_value": str(silero_output)[:100]  # 限制长度
+                    "output_value": str(silero_output)[:100]
                 }
-            )
+            ) from e
 
     def _reset_model_states(self) -> None:
         """
@@ -530,8 +513,7 @@ class SileroVADBackend(VADBackend):
 
             # 重置VAD迭代器状态（如果存在）
             if hasattr(self._thread_local, 'vad_iterator') and self._thread_local.vad_iterator:
-                if hasattr(self._thread_local.vad_iterator, 'reset_states'):
-                    self._thread_local.vad_iterator.reset_states()
+                self._thread_local.vad_iterator.reset_states()
 
         except Exception:
             # 静默处理重置错误，不影响主要功能
@@ -567,7 +549,7 @@ class SileroVADBackend(VADBackend):
             raise ModelLoadError(
                 "silero_vad",
                 f"模型预热失败: {str(e)}"
-            )
+            ) from e
 
     def get_backend_info(self) -> dict[str, Any]:
         """
