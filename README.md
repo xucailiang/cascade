@@ -52,13 +52,13 @@ graph TD
 ### 安装
 
 ```bash
-# 从源码安装
+# 从PyPI安装（推荐）
+pip install cascade-vad
+
+# 或从源码安装
 git clone https://github.com/xucailiang/cascade.git
 cd cascade
 pip install -e .
-
-# 或使用pip安装（即将支持）
-pip install cascade-vad
 ```
 
 ### 基础使用

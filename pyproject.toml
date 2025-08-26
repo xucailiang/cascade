@@ -3,7 +3,7 @@ requires = ["hatchling>=1.20.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "cascade"
+name = "cascade-vad"
 version = "0.1.0"
 description = "高性能异步并行VAD处理库"
 readme = "README.md"
