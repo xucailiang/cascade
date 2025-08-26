@@ -7,6 +7,12 @@ on:
     branches: [ master ]
     types: [ closed ]
 
+# 工作流级别的权限配置
+permissions:
+  contents: write    # 允许创建release和推送tag
+  packages: write    # 允许发布包
+  id-token: write    # 允许OIDC token
+
 jobs:
   build-wheel:
     runs-on: ubuntu-latest
@@ -101,6 +107,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-wheel
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    permissions:
+      contents: write  # 允许创建release
+      packages: write  # 允许发布包
+      id-token: write  # 允许OIDC token
     
     steps:
     - name: Download wheel artifacts
@@ -120,6 +130,14 @@ jobs:
         twine upload --skip-existing dist/*
       if: env.TWINE_PASSWORD != ''
     
+    - name: Create Git Tag
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git tag -a v${{ needs.build-wheel.outputs.version }} -m "Release v${{ needs.build-wheel.outputs.version }}"
+        git push origin v${{ needs.build-wheel.outputs.version }} || echo "Tag already exists"
+      continue-on-error: true
+
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
@@ -140,7 +158,12 @@ jobs:
           - Commit: ${{ github.sha }}
           - Build Date: ${{ github.event.head_commit.timestamp }}
           - Workflow: ${{ github.workflow }}
+          - Build ID: ${{ needs.build-wheel.outputs.build_id }}
         draft: false
         prerelease: false
         files: dist/*
         token: ${{ secrets.GITHUB_TOKEN }}
+        fail_on_unmatched_files: false
+        make_latest: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
