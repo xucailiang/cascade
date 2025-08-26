@@ -1,6 +1,6 @@
 # Cascade - 高性能异步并行VAD处理库
 
-[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://python.org)
+[![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Development Status](https://img.shields.io/badge/status-beta-orange.svg)](https://github.com/xucailiang/cascade)
 [![Silero VAD](https://img.shields.io/badge/powered%20by-Silero%20VAD-orange.svg)](https://github.com/snakers4/silero-vad)
@@ -243,7 +243,7 @@ python test_stream_real_audio.py
 
 ### 核心依赖
 
-- **Python**: 3.11+
+- **Python**: 3.12+
 - **pydantic**: 2.4.0+ (数据验证)
 - **numpy**: 1.24.0+ (数值计算)
 - **scipy**: 1.11.0+ (信号处理)

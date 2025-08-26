@@ -1,0 +1,144 @@
+name: Build and Release Wheel
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+    types: [ closed ]
+
+jobs:
+  build-wheel:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install hatch build twine
+    
+    - name: Get version info
+      id: version
+      run: |
+        # Get version from pyproject.toml
+        VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Building version: $VERSION"
+        
+        # Generate build identifier
+        BUILD_ID=$(date +%Y%m%d%H%M%S)-$(git rev-parse --short HEAD)
+        echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+        echo "Build ID: $BUILD_ID"
+    
+    - name: Build wheel and source distribution
+      run: |
+        echo "Building wheel and source distribution..."
+        python -m build
+        
+        # Verify build results
+        echo "Built packages:"
+        ls -la dist/
+        
+        # Check wheel contents
+        echo "Wheel contents:"
+        python -m zipfile -l dist/*.whl | head -20
+    
+    - name: Verify wheel
+      run: |
+        echo "Verifying wheel installation..."
+        pip install dist/*.whl
+        python -c "import cascade; print(f'Cascade version: {cascade.__version__}')"
+        python -c "import cascade; print('Cascade imported successfully')"
+    
+    - name: Upload wheel artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: cascade-wheel-${{ steps.version.outputs.version }}-${{ steps.version.outputs.build_id }}
+        path: |
+          dist/*.whl
+          dist/*.tar.gz
+        retention-days: 30
+    
+    - name: Create release info
+      run: |
+        echo "Release Information" > release-info.txt
+        echo "===================" >> release-info.txt
+        echo "Version: ${{ steps.version.outputs.version }}" >> release-info.txt
+        echo "Build ID: ${{ steps.version.outputs.build_id }}" >> release-info.txt
+        echo "Commit: $(git rev-parse HEAD)" >> release-info.txt
+        echo "Branch: ${{ github.ref_name }}" >> release-info.txt
+        echo "Trigger: ${{ github.event_name }}" >> release-info.txt
+        echo "Date: $(date -u)" >> release-info.txt
+        echo "" >> release-info.txt
+        echo "Built Files:" >> release-info.txt
+        ls -la dist/ >> release-info.txt
+        
+        cat release-info.txt
+    
+    - name: Upload release info
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-info-${{ steps.version.outputs.build_id }}
+        path: release-info.txt
+        retention-days: 30
+
+  # Optional: Auto-publish to PyPI (requires PYPI_API_TOKEN secret)
+  publish-to-pypi:
+    runs-on: ubuntu-latest
+    needs: build-wheel
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    
+    steps:
+    - name: Download wheel artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: cascade-wheel-${{ needs.build-wheel.outputs.version }}-${{ needs.build-wheel.outputs.build_id }}
+        path: dist/
+    
+    - name: Publish to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        pip install twine
+        echo "Publishing to PyPI..."
+        # Note: using --skip-existing to avoid duplicate uploads
+        twine upload --skip-existing dist/*
+      if: env.TWINE_PASSWORD != ''
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v${{ needs.build-wheel.outputs.version }}
+        name: Release v${{ needs.build-wheel.outputs.version }}
+        body: |
+          Cascade v${{ needs.build-wheel.outputs.version }} Release
+          
+          ## Installation
+          ```bash
+          pip install cascade==${{ needs.build-wheel.outputs.version }}
+          ```
+          
+          ## Changes
+          This release was automatically built from the master branch.
+          
+          ## Build Info
+          - Commit: ${{ github.sha }}
+          - Build Date: ${{ github.event.head_commit.timestamp }}
+          - Workflow: ${{ github.workflow }}
+        draft: false
+        prerelease: false
+        files: dist/*
+        token: ${{ secrets.GITHUB_TOKEN }}
+      if: secrets.GITHUB_TOKEN != ''
