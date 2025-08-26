@@ -141,4 +141,3 @@ jobs:
         prerelease: false
         files: dist/*
         token: ${{ secrets.GITHUB_TOKEN }}
-      if: secrets.GITHUB_TOKEN != ''
