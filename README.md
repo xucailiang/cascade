@@ -57,8 +57,8 @@ git clone https://github.com/xucailiang/cascade.git
 cd cascade
 pip install -e .
 
-# 或使用pip安装（即将支持）
-pip install cascade-vad
+# 或使用pip安装
+pip install cascade
 ```
 
 ### 基础使用
