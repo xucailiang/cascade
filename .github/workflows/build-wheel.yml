@@ -130,20 +130,6 @@ jobs:
         twine upload --skip-existing dist/*
       if: env.TWINE_PASSWORD != ''
     
-    - name: Checkout code for tagging
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Create Git Tag
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git tag -a v${{ needs.build-wheel.outputs.version }} -m "Release v${{ needs.build-wheel.outputs.version }}"
-        git push origin v${{ needs.build-wheel.outputs.version }} || echo "Tag already exists"
-      continue-on-error: true
-
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
