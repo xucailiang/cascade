@@ -130,6 +130,12 @@ jobs:
         twine upload --skip-existing dist/*
       if: env.TWINE_PASSWORD != ''
     
+    - name: Checkout code for tagging
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Create Git Tag
       run: |
         git config --local user.email "action@github.com"
