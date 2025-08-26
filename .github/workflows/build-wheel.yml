@@ -11,6 +11,9 @@ jobs:
   build-wheel:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      build_id: ${{ steps.version.outputs.build_id }}
     
     steps:
     - name: Checkout code
