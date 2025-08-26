@@ -78,10 +78,6 @@ class PerformanceMetrics(BaseModel):
         description="活跃线程数",
         ge=0
     )
-    queue_depth: int = Field(
-        description="队列深度",
-        ge=0
-    )
 
     # 缓冲区指标
     buffer_utilization: float = Field(

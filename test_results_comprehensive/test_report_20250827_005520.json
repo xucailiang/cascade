@@ -1,0 +1,79 @@
+{
+  "total_duration": 6.175741609000397,
+  "success_rate": 1.0,
+  "tests_run": 7,
+  "tests_passed": 7,
+  "tests_failed": 0,
+  "performance_data": {
+    "基础StreamProcessor使用": {
+      "success": true,
+      "duration": 16223.758173072,
+      "details": {
+        "frame_results": 164,
+        "segment_results": 2,
+        "total_chunks": 289
+      }
+    },
+    "流式处理功能": {
+      "success": true,
+      "duration": 16224.223979387,
+      "details": {
+        "total_results": 166,
+        "speech_segments": 2,
+        "single_frames": 164,
+        "saved_files": 2,
+        "stats": "处理了290个块, 语音段2个, 平均处理时间0.0ms"
+      }
+    },
+    "文件处理功能": {
+      "success": true,
+      "duration": 16224.691162449,
+      "details": {
+        "total_results": 166,
+        "speech_segments": 2,
+        "file_processed": "/home/justin/workspace/cascade/我现在开始录音，理论上会有两个文件.wav",
+        "stats": "处理了290个块, 语音段2个, 平均处理时间0.0ms"
+      }
+    },
+    "高级配置功能": {
+      "success": true,
+      "duration": 16225.422234754,
+      "details": {
+        "config_threshold": 0.7,
+        "config_instances": 3,
+        "results_count": 0,
+        "stats": "处理了579个块, 语音段0个, 平均处理时间0.0ms"
+      }
+    },
+    "并发处理能力": {
+      "success": true,
+      "duration": 16226.088536041,
+      "details": {
+        "successful_tasks": 3,
+        "failed_tasks": 0,
+        "total_tasks": 3,
+        "stats": "处理了870个块, 语音段6个, 平均处理时间0.0ms"
+      }
+    },
+    "错误处理": {
+      "success": true,
+      "duration": 16226.296990056,
+      "details": {
+        "error_handling": "successful",
+        "recovery": "successful"
+      }
+    },
+    "性能基准测试": {
+      "success": true,
+      "duration": 0.4625485340002342,
+      "details": {
+        "audio_duration": 9.26,
+        "processing_duration": 0.4625485340002342,
+        "real_time_factor": 20.019520805562234,
+        "results_count": 166,
+        "throughput": 691893.1513083049
+      }
+    }
+  },
+  "error_log": []
+}

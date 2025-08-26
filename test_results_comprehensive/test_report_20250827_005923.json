@@ -1,0 +1,84 @@
+{
+  "total_duration": 6.41834206600106,
+  "success_rate": 0.8571428571428571,
+  "tests_run": 7,
+  "tests_passed": 6,
+  "tests_failed": 1,
+  "performance_data": {
+    "基础StreamProcessor使用": {
+      "success": true,
+      "duration": 16466.574824938,
+      "details": {
+        "frame_results": 164,
+        "segment_results": 2,
+        "total_chunks": 289
+      }
+    },
+    "流式处理功能": {
+      "success": true,
+      "duration": 16467.039160652,
+      "details": {
+        "total_results": 166,
+        "speech_segments": 2,
+        "single_frames": 164,
+        "saved_files": 2,
+        "stats": "处理了290个块, 语音段2个, 平均处理时间0.0ms"
+      }
+    },
+    "文件处理功能": {
+      "success": false,
+      "duration": 16467.769347271,
+      "details": {
+        "error": "文件处理应产生结果"
+      }
+    },
+    "高级配置功能": {
+      "success": true,
+      "duration": 16468.498988197,
+      "details": {
+        "config_threshold": 0.7,
+        "config_instances": 3,
+        "results_count": 0,
+        "stats": "处理了579个块, 语音段0个, 平均处理时间0.0ms"
+      }
+    },
+    "并发处理能力": {
+      "success": true,
+      "duration": 16469.259471673,
+      "details": {
+        "successful_tasks": 3,
+        "failed_tasks": 0,
+        "total_tasks": 3,
+        "stats": "处理了870个块, 语音段6个, 平均处理时间0.0ms"
+      }
+    },
+    "错误处理": {
+      "success": true,
+      "duration": 16469.36743244,
+      "details": {
+        "error_handling": "successful",
+        "recovery": "successful"
+      }
+    },
+    "性能基准测试": {
+      "success": true,
+      "duration": 0.46128727099858224,
+      "details": {
+        "audio_duration": 9.26,
+        "processing_duration": 0.46128727099858224,
+        "real_time_factor": 20.074258671725758,
+        "results_count": 166,
+        "throughput": 653599.2262224611
+      }
+    }
+  },
+  "error_log": [
+    {
+      "test": "文件处理功能",
+      "timestamp": "2025-08-27T00:59:21.716261",
+      "details": {
+        "error": "文件处理应产生结果"
+      }
+    }
+  ]
+}
