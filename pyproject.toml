@@ -7,7 +7,7 @@ name = "cascade-vad"
 version = "0.1.0"
 description = "高性能异步并行VAD处理库"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "Xucailiang", email = "xucailiang.ai@gmail.com"}
 ]
