@@ -199,3 +199,6 @@ cascade = ["py.typed"]
     "/docs",
     "/scripts",
 ]
+
+[tool.hatch.version]
+path = "cascade/__init__.py"
