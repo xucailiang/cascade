@@ -34,8 +34,7 @@ jobs:
     
     - name: Install build dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install hatch build twine
+        python -m pip install --upgrade setuptools wheel twine build semver packaging
     
     - name: Get version info
       id: version
@@ -50,6 +49,11 @@ jobs:
         echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
         echo "Build ID: $BUILD_ID"
     
+    - name: Clean previous builds
+      run: |
+        echo "Cleaning previous build artifacts..."
+        rm -rf dist/ build/ *.egg-info/
+        
     - name: Build wheel and source distribution
       run: |
         echo "Building wheel and source distribution..."
@@ -124,7 +128,7 @@ jobs:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: |
-        pip install twine
+        pip install --upgrade twine
         echo "Publishing to PyPI..."
         # Note: using --skip-existing to avoid duplicate uploads
         twine upload --skip-existing dist/*
