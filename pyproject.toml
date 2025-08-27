@@ -182,8 +182,10 @@ ignore = [
 "tests/*" = ["PLR2004"]  # Magic value used in comparison
 
 # ===== Setuptools配置 =====
-[tool.setuptools]
-packages = { find = {} }
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cascade*"]
+exclude = ["tests*"]
 
 [tool.setuptools.package-data]
 cascade = ["py.typed"]
