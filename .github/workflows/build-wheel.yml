@@ -36,16 +36,36 @@ jobs:
       run: |
         python -m pip install --upgrade setuptools wheel twine build semver packaging
     
+    - name: Set version
+      id: set_version
+      run: |
+        # Get the major version from pyproject.toml
+        MAJOR_VERSION=$(grep 'version = ' pyproject.toml | awk -F'"' '{print $2}')
+        
+        # Set the new version, using the run number as the patch
+        NEW_VERSION="$MAJOR_VERSION.${{ github.run_number }}"
+        echo "New version: $NEW_VERSION"
+        
+        # Update the version in pyproject.toml and cascade/__init__.py
+        sed -i "s/^version = .*/version = \"$NEW_VERSION\"/" pyproject.toml
+        sed -i "s/^__version__ = .*/__version__ = \"$NEW_VERSION\"/" cascade/__init__.py
+        
+        echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        
+        # Generate a unique build ID
+        BUILD_ID=$(date +%Y%m%d%H%M%S)-$(git rev-parse --short HEAD)
+        echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+    
     - name: Get version info
       id: version
       run: |
-        # Get version from cascade/__init__.py
+        # Get version from cascade/__init__.py after update
         VERSION=$(python -c "import re; print(re.search(r'__version__\s*=\s*[\"\'](.*?)[\"\']', open('cascade/__init__.py').read()).group(1))")
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Building version: $VERSION"
         
-        # Generate build identifier
-        BUILD_ID=$(date +%Y%m%d%H%M%S)-$(git rev-parse --short HEAD)
+        # Get build identifier from the previous step
+        BUILD_ID=${{ steps.set_version.outputs.build_id }}
         echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
         echo "Build ID: $BUILD_ID"
     
@@ -119,7 +139,7 @@ jobs:
       if: github.event_name == 'push' && github.ref == 'refs/heads/master'
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ steps.version.outputs.version }}
+        tag_name: v${{ steps.set_version.outputs.version }}
         name: Release v${{ steps.version.outputs.version }}
         body: |
           Cascade v${{ steps.version.outputs.version }} Release
