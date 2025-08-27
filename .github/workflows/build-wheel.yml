@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     outputs:
-      version: ${{ env.VERSION }}
+      version: ${{ steps.get_version.outputs.version }}
       build_id: ${{ steps.build_info.outputs.build_id }}
     
     steps:
@@ -39,7 +39,8 @@ jobs:
     - name: Get version
       id: get_version
       run: |
-        VERSION=$(grep 'version = ' pyproject.toml | awk -F'"' '{print $2}')
+        VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "VERSION=$VERSION" >> $GITHUB_ENV
         echo "Project version: $VERSION"
     
@@ -78,7 +79,7 @@ jobs:
     - name: Upload wheel artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: cascade-vad-wheel-${{ env.VERSION }}-${{ steps.build_info.outputs.build_id }}
+        name: cascade-vad-wheel-${{ steps.get_version.outputs.version }}-${{ steps.build_info.outputs.build_id }}
         path: |
           dist/*.whl
           dist/*.tar.gz
@@ -88,7 +89,7 @@ jobs:
       run: |
         echo "Release Information" > release-info.txt
         echo "===================" >> release-info.txt
-        echo "Version: ${{ env.VERSION }}" >> release-info.txt
+        echo "Version: ${{ steps.get_version.outputs.version }}" >> release-info.txt
         echo "Build ID: ${{ steps.build_info.outputs.build_id }}" >> release-info.txt
         echo "Commit: $(git rev-parse HEAD)" >> release-info.txt
         echo "Branch: ${{ github.ref_name }}" >> release-info.txt
@@ -120,14 +121,14 @@ jobs:
       if: github.event_name == 'push' && github.ref == 'refs/heads/master'
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ env.VERSION }}
-        name: Release v${{ env.VERSION }}
+        tag_name: v${{ steps.get_version.outputs.version }}
+        name: Release v${{ steps.get_version.outputs.version }}
         body: |
-          Cascade v${{ env.VERSION }} Release
+          Cascade v${{ steps.get_version.outputs.version }} Release
           
           ## Installation
           ```bash
-          pip install cascade-vad==${{ env.VERSION }}
+          pip install cascade-vad==${{ steps.get_version.outputs.version }}
           ```
           
           ## Changes
