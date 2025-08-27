@@ -106,45 +106,27 @@ jobs:
         path: release-info.txt
         retention-days: 30
 
-  # Optional: Auto-publish to PyPI (requires PYPI_API_TOKEN secret)
-  publish-to-pypi:
-    runs-on: ubuntu-latest
-    needs: build-wheel
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    permissions:
-      contents: write  # 允许创建release
-      packages: write  # 允许发布包
-      id-token: write  # 允许OIDC token
-    
-    steps:
-    - name: Download wheel artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: cascade-vad-wheel-${{ needs.build-wheel.outputs.version }}-${{ needs.build-wheel.outputs.build_id }}
-        path: dist/
-    
     - name: Publish to PyPI
+      if: github.event_name == 'push' && github.ref == 'refs/heads/master'
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: |
-        pip install --upgrade twine
         echo "Publishing to PyPI..."
-        # Note: using --skip-existing to avoid duplicate uploads
         twine upload --skip-existing dist/*
-      if: env.TWINE_PASSWORD != ''
-    
+      
     - name: Create GitHub Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/master'
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ needs.build-wheel.outputs.version }}
-        name: Release v${{ needs.build-wheel.outputs.version }}
+        tag_name: v${{ steps.version.outputs.version }}
+        name: Release v${{ steps.version.outputs.version }}
         body: |
-          Cascade v${{ needs.build-wheel.outputs.version }} Release
+          Cascade v${{ steps.version.outputs.version }} Release
           
           ## Installation
           ```bash
-          pip install cascade-vad==${{ needs.build-wheel.outputs.version }}
+          pip install cascade-vad==${{ steps.version.outputs.version }}
           ```
           
           ## Changes
@@ -154,12 +136,10 @@ jobs:
           - Commit: ${{ github.sha }}
           - Build Date: ${{ github.event.head_commit.timestamp }}
           - Workflow: ${{ github.workflow }}
-          - Build ID: ${{ needs.build-wheel.outputs.build_id }}
+          - Build ID: ${{ steps.version.outputs.build_id }}
         draft: false
         prerelease: false
         files: dist/*
         token: ${{ secrets.GITHUB_TOKEN }}
         fail_on_unmatched_files: false
         make_latest: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
