@@ -36,6 +36,14 @@ jobs:
       run: |
         python -m pip install --upgrade setuptools wheel twine build semver packaging
     
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install semver
+      run: npm install -g semver
+
     - name: Set version
       id: set_version
       run: |
@@ -43,12 +51,12 @@ jobs:
         MAJOR_VERSION=$(grep 'version = ' pyproject.toml | awk -F'"' '{print $2}')
         
         # Set the new version, using the run number as the patch
-        NEW_VERSION=$(semver -i patch $MAJOR_VERSION)-dev${{ github.run_number }}
+        NEW_VERSION="$MAJOR_VERSION.${{ github.run_number }}"
         echo "New version: $NEW_VERSION"
         
         # Update the version in pyproject.toml and cascade/__init__.py
-        sed -i "s#^version = .*#version = \"$NEW_VERSION\"#" pyproject.toml
-        sed -i "s#^__version__ = .*#__version__ = \"$NEW_VERSION\"#" cascade/__init__.py
+        sed -i "s/^version = .*/version = \"$NEW_VERSION\"/" pyproject.toml
+        sed -i "s/^__version__ = .*/__version__ = \"$NEW_VERSION\"/" cascade/__init__.py
         
         echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
         
