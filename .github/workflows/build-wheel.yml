@@ -34,38 +34,19 @@ jobs:
     
     - name: Install build dependencies
       run: |
-        python -m pip install --upgrade setuptools wheel twine build semver packaging
+        python -m pip install --upgrade setuptools wheel twine build packaging
     
-    - name: Set version
-      id: set_version
+    - name: Get version
+      id: get_version
       run: |
-        # Get the major version from pyproject.toml
-        MAJOR_VERSION=$(grep 'version = ' pyproject.toml | awk -F'"' '{print $2}')
-        
-        # Set the new development version, using the run number as the dev identifier
-        NEW_VERSION="${MAJOR_VERSION}.dev${{ github.run_number }}"
-        echo "New version: $NEW_VERSION"
-        
-        # Update the version in pyproject.toml and cascade/__init__.py using a safe separator for sed
-        sed -i "s#^version = .*#version = \"$NEW_VERSION\"#" pyproject.toml
-        sed -i "s#^__version__ = .*#__version__ = \"$NEW_VERSION\"#" cascade/__init__.py
-        
-        echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-        
-        # Generate a unique build ID
-        BUILD_ID=$(date +%Y%m%d%H%M%S)-$(git rev-parse --short HEAD)
-        echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
-    
-    - name: Get version info
-      id: version
-      run: |
-        # Get version from cascade/__init__.py after update
-        VERSION=$(python -c "import re; print(re.search(r'__version__\s*=\s*[\"\'](.*?)[\"\']', open('cascade/__init__.py').read()).group(1))")
+        VERSION=$(grep 'version = ' pyproject.toml | awk -F'"' '{print $2}')
         echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Building version: $VERSION"
-        
-        # Get build identifier from the previous step
-        BUILD_ID=${{ steps.set_version.outputs.build_id }}
+        echo "Project version: $VERSION"
+    
+    - name: Generate build info
+      id: build_info
+      run: |
+        BUILD_ID=$(date +%Y%m%d%H%M%S)-$(git rev-parse --short HEAD)
         echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
         echo "Build ID: $BUILD_ID"
     
@@ -97,7 +78,7 @@ jobs:
     - name: Upload wheel artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: cascade-vad-wheel-${{ steps.version.outputs.version }}-${{ steps.version.outputs.build_id }}
+        name: cascade-vad-wheel-${{ steps.get_version.outputs.version }}-${{ steps.build_info.outputs.build_id }}
         path: |
           dist/*.whl
           dist/*.tar.gz
@@ -107,8 +88,8 @@ jobs:
       run: |
         echo "Release Information" > release-info.txt
         echo "===================" >> release-info.txt
-        echo "Version: ${{ steps.version.outputs.version }}" >> release-info.txt
-        echo "Build ID: ${{ steps.version.outputs.build_id }}" >> release-info.txt
+        echo "Version: ${{ steps.get_version.outputs.version }}" >> release-info.txt
+        echo "Build ID: ${{ steps.build_info.outputs.build_id }}" >> release-info.txt
         echo "Commit: $(git rev-parse HEAD)" >> release-info.txt
         echo "Branch: ${{ github.ref_name }}" >> release-info.txt
         echo "Trigger: ${{ github.event_name }}" >> release-info.txt
@@ -122,7 +103,7 @@ jobs:
     - name: Upload release info
       uses: actions/upload-artifact@v4
       with:
-        name: release-info-${{ steps.version.outputs.build_id }}
+        name: release-info-${{ steps.build_info.outputs.build_id }}
         path: release-info.txt
         retention-days: 30
 
@@ -139,14 +120,14 @@ jobs:
       if: github.event_name == 'push' && github.ref == 'refs/heads/master'
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ steps.set_version.outputs.version }}
-        name: Release v${{ steps.version.outputs.version }}
+        tag_name: v${{ steps.get_version.outputs.version }}
+        name: Release v${{ steps.get_version.outputs.version }}
         body: |
-          Cascade v${{ steps.version.outputs.version }} Release
+          Cascade v${{ steps.get_version.outputs.version }} Release
           
           ## Installation
           ```bash
-          pip install cascade-vad==${{ steps.version.outputs.version }}
+          pip install cascade-vad==${{ steps.get_version.outputs.version }}
           ```
           
           ## Changes
@@ -156,7 +137,7 @@ jobs:
           - Commit: ${{ github.sha }}
           - Build Date: ${{ github.event.head_commit.timestamp }}
           - Workflow: ${{ github.workflow }}
-          - Build ID: ${{ steps.version.outputs.build_id }}
+          - Build ID: ${{ steps.build_info.outputs.build_id }}
         draft: false
         prerelease: false
         files: dist/*
