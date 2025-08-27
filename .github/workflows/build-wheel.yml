@@ -40,8 +40,8 @@ jobs:
     - name: Get version info
       id: version
       run: |
-        # Get version from pyproject.toml
-        VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+        # Get version from cascade/__init__.py
+        VERSION=$(python -c "import re; print(re.search(r'__version__\s*=\s*[\"\'](.*?)[\"\']', open('cascade/__init__.py').read()).group(1))")
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Building version: $VERSION"
         
