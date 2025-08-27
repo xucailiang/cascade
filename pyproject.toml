@@ -183,8 +183,7 @@ ignore = [
 
 # ===== Setuptools配置 =====
 [tool.setuptools]
-packages = ["cascade"]
-package-dir = {"" = "."}
+packages = { find = {} }
 
 [tool.setuptools.package-data]
 cascade = ["py.typed"]
