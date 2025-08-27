@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "高性能异步并行VAD处理库"
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     {name = "Xucailiang", email = "xucailiang.ai@gmail.com"}
 ]
@@ -25,12 +26,13 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
     "Topic :: Multimedia :: Sound/Audio :: Analysis",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 
 dependencies = [
     # Core dependencies
