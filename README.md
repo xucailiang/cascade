@@ -9,7 +9,7 @@ Cascade是一个专为语音活动检测(VAD)设计的高性能、低延迟音�
 
 ## ✨ 核心特性
 
-- **🚀 高性能处理**: 17.75x实时处理速度，优化的并发架构
+- **🚀 高性能处理**: 2430.3 fps处理速度，29.04ms低延迟
 - **🔄 异步流式**: 基于asyncio的非阻塞音频流处理
 - **🎯 简洁API**: 符合开源项目最佳实践的直观接口
 - **🧵 1:1:1绑定**: 每个实例对应一个线程、一个缓冲区、一个VAD模型
@@ -35,7 +35,7 @@ graph TD
     
     subgraph "1:1:1绑定架构"
         Instance1 --> Thread1[专用线程1]
-        Thread1 --> Buffer1[环形缓冲区1]
+        Thread1 --> Buffer1[帧对齐缓冲区1]
         Thread1 --> VAD1[Silero VAD1]
     end
     
@@ -52,6 +52,11 @@ graph TD
 ### 安装
 
 ```bash
+# 建议使用uv
+uv venv -p 3.12
+
+source .venv/bin/activate
+
 # 从PyPI安装（推荐）
 pip install cascade-vad
 
@@ -71,14 +76,18 @@ async def basic_example():
     """基础使用示例"""
     
     # 方式1：最简单的文件处理
-    results = await cascade.process_audio_file("audio.wav")
-    speech_segments = [r for r in results if r.is_speech_segment]
-    print(f"检测到 {len(speech_segments)} 个语音段")
+    async for result in cascade.process_audio_file("audio.wav"):
+        if result.result_type == "segment":
+            segment = result.segment
+            print(f"🎤 语音段: {segment.start_timestamp_ms:.0f}ms - {segment.end_timestamp_ms:.0f}ms")
+        else:
+            frame = result.frame
+            print(f"🔇 单帧: {frame.timestamp_ms:.0f}ms")
     
     # 方式2：流式处理
     async with cascade.StreamProcessor() as processor:
         async for result in processor.process_stream(audio_stream):
-            if result.is_speech_segment:
+            if result.result_type == "segment":
                 segment = result.segment
                 print(f"🎤 语音段: {segment.start_timestamp_ms:.0f}ms - {segment.end_timestamp_ms:.0f}ms")
             else:
@@ -138,7 +147,7 @@ cascade/
 ├── buffer/                     # 缓冲区管理
 │   ├── __init__.py
 │   ├── base.py                # 缓冲区基类
-│   └── ring_buffer.py         # 环形缓冲区实现
+│   └── frame_aligned_buffer.py # 帧对齐缓冲区（1:1:1架构核心）
 ├── types/                      # 类型系统
 │   ├── __init__.py            # 核心类型导出
 │   ├── errors.py              # 错误类型
@@ -213,31 +222,38 @@ config = create_default_config(
 项目包含完整的测试套件，验证所有核心功能：
 
 ```bash
-# 运行综合测试
-python test_comprehensive_core.py
+# 运行基础集成测试
+python -m pytest tests/test_integration.py -v
 
-# 运行实时音频测试
-python test_stream_real_audio.py
+# 运行真实音频测试
+python -m pytest tests/test_integration_real_audio.py -v
+
+# 运行性能基准测试
+python tests/benchmark_performance.py
 ```
 
 测试覆盖：
 - ✅ 基础API使用
 - ✅ 流式处理功能
 - ✅ 文件处理功能
-- ✅ 高级配置测试
-- ✅ 并发处理能力
-- ✅ 错误处理和恢复
+- ✅ 真实音频VAD检测
+- ✅ 语音段自动保存
+- ✅ 1:1:1架构验证
 - ✅ 性能基准测试
+- ✅ FrameAlignedBuffer测试
 
 ## 📊 性能表现
 
-基于测试结果的性能指标：
+基于最新测试结果的性能指标：
 
-- **处理速度**: 17.75x实时处理速度
-- **延迟**: 1ms最小延迟（智能模式）
-- **并发能力**: 支持多实例并发处理
-- **内存效率**: 智能缓冲区管理，最小内存占用
+- **处理速度**: 2430.3 fps平均处理速度
+- **延迟**: 29.04ms平均延迟
+- **内存使用**: 471.1MB平均内存占用
+- **成功率**: 100%处理成功率
+- **架构**: 1:1:1绑定架构，无锁设计
 - **准确性**: 基于Silero VAD，保证检测准确性
+
+### 🏆 性能评级：优秀
 
 ## 🔧 依赖要求
 
@@ -281,6 +297,9 @@ class StreamProcessor:
 ### 便捷函数
 
 ```python
+# 处理音频文件（异步迭代器）
+async def process_audio_file(file_path: str) -> AsyncIterator[CascadeResult]
+
 # 处理音频流
 async def process_audio_stream(audio_stream, config=None, stream_id=None)
 
@@ -324,7 +343,10 @@ pip install -e .
 pre-commit install
 
 # 运行测试
-python test_comprehensive_core.py
+python -m pytest tests/ -v
+
+# 运行性能测试
+python tests/benchmark_performance.py
 ```
 
 ## 📄 许可证

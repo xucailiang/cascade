@@ -1,41 +1,62 @@
 """
-Cascade: 高性能异步并行VAD处理库
+Cascade: 高性能异步流式VAD处理库
 
 Cascade是一个专为语音活动检测(VAD)设计的高性能、低延迟音频流处理库。
-通过并行处理技术和优化的架构设计，显著降低VAD处理延迟，同时保证检测结果的准确性。
+基于StreamProcessor核心架构，提供简洁的异步流式处理能力。
 
 核心特性:
-- 并行处理: 多线程VAD实例并行处理音频块
-- 重叠处理: 通过块间重叠区域解决边界问题
+- 流式处理: 基于VAD状态机的异步流式音频处理
+- 语音段检测: 自动检测和收集完整语音段
 - 异步设计: 基于asyncio的高并发处理能力
 - 低延迟: 优化的缓冲区和处理流程
-- 多格式支持: WAV和PCMA格式，16kHz和8kHz采样率
-- 多后端支持: ONNX和VLLM两种VAD后端
-- 零拷贝设计: 最小化内存复制，提高处理效率
+- 多格式支持: WAV和MP3格式，16kHz采样率
+- 多后端支持: ONNX和Silero VAD后端
+- 简洁API: 符合现代Python异步编程习惯
 
 快速开始:
     >>> import cascade
     >>> # 零配置使用
     >>> results = await cascade.process_audio_file("audio.wav")
-    >>> print(f"检测到 {len(results)} 个语音段")
+    >>> print(f"检测到 {len(results)} 个结果")
     
-    >>> # 高级配置
-    >>> processor = cascade.VADProcessor(
-    ...     vad_config=cascade.VADConfig(workers=8, threshold=0.7),
-    ...     audio_config=cascade.AudioConfig(sample_rate=16000)
-    ... )
-    >>> async for result in processor.process_stream(audio_stream):
-    ...     if result.is_speech:
-    ...         print(f"语音: {result.start_ms}ms - {result.end_ms}ms")
+    >>> # 流式处理
+    >>> async with cascade.StreamProcessor() as processor:
+    ...     async for result in processor.process_stream(audio_stream):
+    ...         if result.is_speech_segment:
+    ...             print(f"语音段: {result.segment.duration_ms:.0f}ms")
+    ...         else:
+    ...             print(f"单帧: {result.frame.timestamp_ms:.0f}ms")
 """
 
 # 版本信息
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __author__ = "Xucailiang"
 __license__ = "MIT"
 __email__ = "xucailiang.ai@gmail.com"
 
+import os
+
 # 核心模块导入
+# 流式处理器模块导入
+from .stream import (
+    AUDIO_FRAME_DURATION_MS,
+    AUDIO_FRAME_SIZE,
+    # 常量
+    AUDIO_SAMPLE_RATE,
+    # 数据类型
+    AudioFrame,
+    CascadeResult,
+    Config,
+    ProcessorStats,
+    SpeechSegment,
+    # 核心处理器
+    StreamProcessor,
+    create_default_config,
+    create_stream_processor,
+    process_audio_chunk,
+    # 便捷函数
+    process_audio_stream,
+)
 from .types import (
     # 数据类型
     AudioChunk,
@@ -56,24 +77,15 @@ from .types import (
 )
 
 
-# 主要组件导入 (延迟导入以避免循环依赖)
+# 主要组件延迟导入
 def __getattr__(name: str):
     """延迟导入主要组件"""
-    if name == "VADProcessor":
-        from .processor import VADProcessor
-        return VADProcessor
-    elif name == "VADProcessorConfig":
-        from .processor import VADProcessorConfig
-        return VADProcessorConfig
-    elif name == "AudioFormatProcessor":
+    if name == "AudioFormatProcessor":
         from .formats import AudioFormatProcessor
         return AudioFormatProcessor
-    elif name == "AudioRingBuffer":
-        from .buffer import AudioRingBuffer
-        return AudioRingBuffer
-    elif name == "create_vad_processor":
-        # 支持直接导入函数
-        return create_vad_processor
+    elif name == "FrameAlignedBuffer":
+        from .buffer import FrameAlignedBuffer
+        return FrameAlignedBuffer
     elif name == "process_audio_file":
         # 支持直接导入函数
         return process_audio_file
@@ -86,17 +98,21 @@ __all__ = [
     "__version__",
 
     # 核心处理器
-    "VADProcessor",
-    "VADProcessorConfig",
+    "StreamProcessor",
 
     # 配置类型
+    "Config",
     "AudioConfig",
     "VADConfig",
 
     # 数据类型
     "AudioChunk",
+    "AudioFrame",
+    "SpeechSegment",
+    "CascadeResult",
     "VADResult",
     "PerformanceMetrics",
+    "ProcessorStats",
 
     # 枚举类型
     "AudioFormat",
@@ -105,7 +121,7 @@ __all__ = [
 
     # 辅助模块（高级用法）
     "AudioFormatProcessor",
-    "AudioRingBuffer",
+    "FrameAlignedBuffer",
 
     # 异常类型
     "CascadeError",
@@ -114,75 +130,225 @@ __all__ = [
     "VADProcessingError",
 
     # 便捷函数
-    "create_vad_processor",
+    "process_audio_stream",
+    "process_audio_chunk",
     "process_audio_file",
+    "create_default_config",
+    "create_stream_processor",
+
+    # 常量
+    "AUDIO_SAMPLE_RATE",
+    "AUDIO_FRAME_SIZE",
+    "AUDIO_FRAME_DURATION_MS",
 ]
 
-# 便捷工厂函数
-def create_vad_processor(backend_type: str = "onnx", **kwargs) -> "VADProcessor":
+# 便捷函数
+async def process_audio_file(file_path_or_data, **kwargs):
     """
-    创建VAD处理器的便捷函数
-    
+    处理音频文件的便捷函数（异步迭代器）
+
     Args:
-        backend_type: VAD后端类型 ("onnx" 或 "vllm")
-        **kwargs: 其他配置参数
-        
-    Returns:
-        配置好的VAD处理器实例
-        
+        file_path_or_data: 音频文件路径或音频数据（bytes）
+        **kwargs: 配置参数
+
+    Yields:
+        CascadeResult: 处理结果
+
     Example:
-        >>> processor = cascade.create_vad_processor(
-        ...     backend_type="onnx",
-        ...     workers=4,
-        ...     threshold=0.5
-        ... )
+        >>> async for result in cascade.process_audio_file("audio.wav"):
+        ...     if result.is_speech_segment:
+        ...         print(f"语音段: {result.segment.duration_ms:.0f}ms")
+        ...     else:
+        ...         print(f"单帧: {result.frame.timestamp_ms:.0f}ms")
     """
-    from .processor import VADProcessor, VADProcessorConfig
+    
+    from .stream.instance import CascadeInstance
 
-    # 创建VAD配置，使用VADBackend枚举
-    vad_config = VADConfig(backend=VADBackend(backend_type), **kwargs)
-    audio_config = AudioConfig()
+    # 创建配置
+    config = create_default_config(**kwargs)
 
-    # 创建处理器配置
-    processor_config = VADProcessorConfig(
-        vad_config=vad_config,
-        audio_config=audio_config
-    )
+    try:
+        # 判断输入类型
+        if isinstance(file_path_or_data, (str, os.PathLike)):
+            # 文件路径
+            if not os.path.exists(file_path_or_data):
+                raise AudioFormatError(f"音频文件不存在: {file_path_or_data}")
 
-    return VADProcessor(processor_config)
+            # 1. 读取音频文件
+            audio_data = _read_audio_file(str(file_path_or_data), target_sample_rate=16000)
 
-async def process_audio_file(file_path: str, backend_type: str = "onnx", **kwargs) -> list:
+            # 2. 生成音频帧
+            audio_frames = list(_generate_audio_frames(audio_data))
+
+            print(f"音频文件处理开始: {file_path_or_data}")
+            print(f"总时长: {len(audio_data) / 16000:.2f}秒")
+            print(f"处理 {len(audio_frames)} 个音频帧")
+
+        elif isinstance(file_path_or_data, bytes):
+            # 直接的音频数据
+            audio_frames = list(_generate_audio_frames_from_bytes(file_path_or_data))
+            print(f"音频数据处理开始: {len(file_path_or_data)} 字节")
+            print(f"处理 {len(audio_frames)} 个音频帧")
+        else:
+            raise AudioFormatError(f"不支持的输入类型: {type(file_path_or_data)}")
+
+        # 3. 使用CascadeInstance处理
+        instance = CascadeInstance("file_processor", config)
+
+        # 初始化VAD后端
+        await instance.vad_backend.initialize()
+
+        # 4. 逐帧处理并yield结果
+        total_results = 0
+        speech_segments = 0
+        single_frames = 0
+
+        for frame_data in audio_frames:
+            frame_results = instance.process_audio_chunk(frame_data)
+            for result in frame_results:
+                total_results += 1
+                if result.is_speech_segment:
+                    speech_segments += 1
+                else:
+                    single_frames += 1
+                yield result
+
+        print("音频处理完成")
+        print(f"总结果: {total_results} 个")
+        print(f"语音段: {speech_segments} 个")
+        print(f"单帧: {single_frames} 个")
+
+    except Exception as e:
+        raise AudioFormatError(f"音频处理失败: {e}")
+
+
+def _read_audio_file(file_path: str, target_sample_rate: int = 16000):
     """
-    处理音频文件的便捷函数
+    读取音频文件
     
     Args:
         file_path: 音频文件路径
-        backend_type: VAD后端类型 ("onnx" 或 "vllm")
-        **kwargs: VAD配置参数
+        target_sample_rate: 目标采样率
         
     Returns:
-        VAD结果列表
-        
-    Example:
-        >>> results = await cascade.process_audio_file(
-        ...     "audio.wav",
-        ...     backend_type="onnx",
-        ...     threshold=0.7,
-        ...     workers=8
-        ... )
-        >>> print(f"检测到 {len(results)} 个语音段")
+        音频数据数组
     """
-    processor = create_vad_processor(backend_type=backend_type, **kwargs)
-
     try:
-        results = []
-        # 注意：VADProcessor可能有process_stream方法而不是process_file
-        # 这里需要根据实际实现调整
-        async for result in processor.process_stream([]):  # 需要实际的音频数据
-            results.append(result)
-        return results
-    finally:
-        await processor.close()
+        # 尝试使用silero-vad的read_audio函数
+        try:
+            from silero_vad import read_audio
+            audio_data = read_audio(file_path, sampling_rate=target_sample_rate)
+            return audio_data
+        except ImportError:
+            # 如果silero-vad不可用，使用基础的音频读取
+            import wave
+
+            import numpy as np
+
+            with wave.open(file_path, 'rb') as wav_file:
+                frames = wav_file.readframes(-1)
+                audio_data = np.frombuffer(frames, dtype=np.int16)
+
+                # 转换为float32并归一化
+                # 检查是否是PyTorch Tensor
+                if hasattr(audio_data, 'numpy') and callable(getattr(audio_data, 'numpy', None)):
+                    # PyTorch Tensor
+                    audio_data = audio_data.numpy()
+                elif hasattr(audio_data, 'detach') and callable(getattr(audio_data, 'detach', None)):
+                    # PyTorch Tensor with gradients
+                    audio_data = audio_data.detach().numpy()
+
+                audio_data = audio_data.astype(np.float32) / 32768.0
+
+                # 简单的采样率转换（如果需要）
+                source_rate = wav_file.getframerate()
+                if source_rate != target_sample_rate:
+                    # 简单的线性插值重采样
+                    ratio = target_sample_rate / source_rate
+                    new_length = int(len(audio_data) * ratio)
+                    old_indices = np.linspace(0, len(audio_data) - 1, new_length)
+                    audio_data = np.interp(old_indices, np.arange(len(audio_data)), audio_data)
+
+                # 确保返回numpy数组
+                if hasattr(audio_data, 'numpy') and callable(getattr(audio_data, 'numpy', None)):
+                    audio_data = audio_data.numpy()
+                elif hasattr(audio_data, 'detach') and callable(getattr(audio_data, 'detach', None)):
+                    audio_data = audio_data.detach().numpy()
+
+                return audio_data.astype(np.float32)
+
+    except Exception as e:
+        raise AudioFormatError(f"音频文件读取失败: {e}")
+
+
+def _generate_audio_frames(audio_data, frame_size: int = 512) -> list:
+    """
+    生成512样本的音频帧
+    
+    Args:
+        audio_data: 音频数据
+        frame_size: 帧大小（样本数）
+        
+    Returns:
+        音频帧列表（bytes格式）
+    """
+    frames = []
+
+    # 按512样本分块
+    for i in range(0, len(audio_data), frame_size):
+        frame = audio_data[i:i + frame_size]
+
+        # 如果最后一帧不足512样本，跳过（符合silero-vad要求）
+        if len(frame) < frame_size:
+            break
+
+        # 转换为int16格式的bytes
+        import numpy as np
+
+        # 如果是PyTorch Tensor，先转换为numpy数组
+        if hasattr(frame, 'numpy') and callable(getattr(frame, 'numpy', None)):
+            frame = frame.numpy()
+        elif hasattr(frame, 'detach') and callable(getattr(frame, 'detach', None)):
+            frame = frame.detach().numpy()
+
+        frame_int16 = (frame * 32767).astype(np.int16)
+        frame_bytes = frame_int16.tobytes()
+        frames.append(frame_bytes)
+
+    return frames
+
+
+def _generate_audio_frames_from_bytes(audio_bytes: bytes, frame_size: int = 512) -> list:
+    """
+    从音频字节数据生成512样本的音频帧
+    
+    Args:
+        audio_bytes: 音频字节数据（int16格式）
+        frame_size: 帧大小（样本数）
+        
+    Returns:
+        音频帧列表（bytes格式）
+    """
+    import numpy as np
+
+    # 将bytes转换为int16数组
+    audio_int16 = np.frombuffer(audio_bytes, dtype=np.int16)
+
+    frames = []
+
+    # 按512样本分块
+    for i in range(0, len(audio_int16), frame_size):
+        frame = audio_int16[i:i + frame_size]
+
+        # 如果最后一帧不足512样本，跳过（符合silero-vad要求）
+        if len(frame) < frame_size:
+            break
+
+        # 转换为bytes
+        frame_bytes = frame.tobytes()
+        frames.append(frame_bytes)
+
+    return frames
 
 # 兼容性检查
 def check_compatibility() -> dict:
@@ -200,11 +366,11 @@ def check_compatibility() -> dict:
     }
 
     # Python版本检查
-    if sys.version_info < (3, 11):
+    if sys.version_info < (3, 8):
         compatibility_info["compatible"] = False
         compatibility_info["errors"].append(
             f"Python版本过低: {sys.version_info.major}.{sys.version_info.minor}, "
-            "需要Python 3.11或更高版本"
+            "需要Python 3.8或更高版本"
         )
 
     # 平台检查
@@ -239,9 +405,9 @@ def get_debug_info() -> dict:
         pass
 
     try:
-        import vllm
-        debug_info["available_backends"].append("vllm")
-        debug_info["dependencies"]["vllm"] = vllm.__version__
+        import torch
+        debug_info["available_backends"].append("silero")
+        debug_info["dependencies"]["torch"] = torch.__version__
     except ImportError:
         pass
 
@@ -251,12 +417,6 @@ def get_debug_info() -> dict:
         debug_info["dependencies"]["numpy"] = numpy.__version__
     except ImportError:
         debug_info["dependencies"]["numpy"] = "未安装"
-
-    try:
-        import scipy
-        debug_info["dependencies"]["scipy"] = scipy.__version__
-    except ImportError:
-        debug_info["dependencies"]["scipy"] = "未安装"
 
     try:
         import pydantic

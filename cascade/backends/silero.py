@@ -118,7 +118,7 @@ class SileroVADBackend(VADBackend):
             force_reload=self._silero_config.force_reload,
             onnx=self._silero_config.onnx
         )
-        
+
         # 根据返回值类型进行处理
         if isinstance(result, tuple) and len(result) >= 2:
             # 如果返回元组，解包为model和utils
@@ -504,7 +504,7 @@ class SileroVADBackend(VADBackend):
             start_ms = chunk.timestamp_ms
             # 确保end_ms大于start_ms，避免验证错误
             end_ms = start_ms + (chunk.chunk_size / chunk.sample_rate * 1000)
-            
+
             return VADResult(
                 audio_chunk=chunk.data,
                 original_result = silero_output,
