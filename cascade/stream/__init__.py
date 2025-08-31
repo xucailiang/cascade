@@ -11,39 +11,39 @@ Cascade 流式处理器模块
 
 使用示例：
     ```python
-    from cascade.stream import StreamProcessor, Config
+    import cascade
     
-    # 创建配置
-    config = Config()
+    # 推荐方式：使用工厂函数
+    processor = cascade.create_processor()
+    async for result in processor.process_file("audio.wav"):
+        if result.is_speech_segment:
+            print(f"检测到语音段: {result.segment}")
+        else:
+            print(f"单帧结果: {result.frame}")
     
-    # 创建处理器
-    async with StreamProcessor(config) as processor:
-        # 处理音频流
-        async for result in processor.process_stream(audio_stream):
-            if result.is_speech_segment:
-                print(f"检测到语音段: {result.segment}")
-            else:
-                print(f"单帧结果: {result.frame}")
+    # 自定义配置
+    processor = cascade.create_processor(vad_threshold=0.7)
+    async for result in processor.process_stream(audio_stream):
+        # 处理结果
     ```
 """
 
+from .collector import SpeechCollector
+from .instance import CascadeInstance
+from .processor import StreamProcessor
+from .state_machine import VADState, VADStateMachine
 from .types import (
+    AUDIO_CHANNELS,
+    AUDIO_FRAME_DURATION_MS,
+    AUDIO_FRAME_SIZE,
+    AUDIO_SAMPLE_RATE,
+    AUDIO_SAMPLE_WIDTH,
     AudioFrame,
-    SpeechSegment, 
     CascadeResult,
     Config,
     ProcessorStats,
-    AUDIO_SAMPLE_RATE,
-    AUDIO_FRAME_SIZE,
-    AUDIO_FRAME_DURATION_MS,
-    AUDIO_CHANNELS,
-    AUDIO_SAMPLE_WIDTH
+    SpeechSegment,
 )
-
-from .collector import SpeechCollector
-from .state_machine import VADStateMachine, VADState
-from .instance import CascadeInstance
-from .processor import StreamProcessor
 
 
 # 便捷函数
@@ -65,7 +65,7 @@ async def process_audio_stream(
     """
     if config is None:
         config = Config()
-    
+
     async with StreamProcessor(config) as processor:
         async for result in processor.process_stream(audio_stream, stream_id):
             yield result
@@ -87,7 +87,7 @@ async def process_audio_chunk(
     """
     if config is None:
         config = Config()
-    
+
     async with StreamProcessor(config) as processor:
         return await processor.process_chunk(audio_data)
 
@@ -117,35 +117,36 @@ def create_stream_processor(config: Config | None = None) -> StreamProcessor:
     """
     if config is None:
         config = Config()
-    
+
     return StreamProcessor(config)
 
 
 __all__ = [
     # 核心类型
     "AudioFrame",
-    "SpeechSegment", 
+    "SpeechSegment",
     "CascadeResult",
     "Config",
     "ProcessorStats",
-    
+
     # 常量
     "AUDIO_SAMPLE_RATE",
-    "AUDIO_FRAME_SIZE", 
+    "AUDIO_FRAME_SIZE",
     "AUDIO_FRAME_DURATION_MS",
     "AUDIO_CHANNELS",
     "AUDIO_SAMPLE_WIDTH",
-    
+
     # 核心组件
     "SpeechCollector",
     "VADStateMachine",
     "VADState",
-    "CascadeInstance", 
+    "CascadeInstance",
     "StreamProcessor",
-    
+
     # 便捷函数
     "process_audio_stream",
     "process_audio_chunk",
     "create_default_config",
     "create_stream_processor",
 ]
+

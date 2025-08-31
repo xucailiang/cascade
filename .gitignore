@@ -252,3 +252,4 @@ cascade.egg-info/
 .cascade/
 cascade_data/
 speech_segments/
+stream_speech_segments/
