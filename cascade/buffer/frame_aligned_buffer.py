@@ -31,7 +31,7 @@ class FrameAlignedBuffer:
     - 避免补0操作，确保帧的完整性
     """
 
-    def __init__(self, max_buffer_samples: int = 32000):
+    def __init__(self, max_buffer_samples: int = 64000):
         """
         初始化帧对齐缓冲区
         
