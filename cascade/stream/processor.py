@@ -4,10 +4,13 @@
 实现异步流式VAD处理编排器，管理多个Cascade实例。
 基于1:1:1架构优化，简化实例管理。
 """
-
 import logging
+import os
 import time
 from collections.abc import AsyncIterator
+
+import numpy as np
+from silero_vad import read_audio
 
 from .instance import CascadeInstance
 from .types import CascadeResult, Config, ProcessorStats
@@ -18,7 +21,7 @@ logger = logging.getLogger(__name__)
 class StreamProcessor:
     """
     流式处理器 - 1:1:1架构优化版本
-    
+
     核心功能：
     - 管理多个CascadeInstance实例（简化版）
     - 提供异步流式处理接口
@@ -26,16 +29,21 @@ class StreamProcessor:
     - 统计信息收集
     """
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config=None):
         """
         初始化流式处理器
-        
+
         Args:
             config: 处理器配置
         """
+        if not config:
+            from cascade.stream import create_default_config
+            config = create_default_config()
+
         self.config = config
         self.instances: dict[str, CascadeInstance] = {}
         self.is_running = False
+        self._auto_initialized = False  # 新增：自动初始化标志
 
         # 实例使用统计
         self.instance_last_used: dict[str, float] = {}
@@ -54,13 +62,20 @@ class StreamProcessor:
         logger.info(f"StreamProcessor 初始化，最大实例数: {config.max_instances}")
 
     async def start(self) -> None:
-        """启动处理器"""
+        """启动处理器并初始化所有实例"""
         if self.is_running:
             logger.warning("StreamProcessor 已在运行")
             return
 
         self.is_running = True
-        logger.info("StreamProcessor 启动")
+
+        # 初始化所有现有实例
+        for instance_id, instance in list(self.instances.items()):
+            if not instance._initialized:
+                await instance._ensure_initialized()
+                logger.info(f"实例 {instance_id} 已初始化")
+
+        logger.info("StreamProcessor 启动完成")
 
     async def stop(self) -> None:
         """停止处理器"""
@@ -75,6 +90,43 @@ class StreamProcessor:
 
         logger.info("StreamProcessor 停止")
 
+    async def _ensure_auto_initialized(self):
+        """确保处理器已自动初始化"""
+        if not self._auto_initialized:
+            await self.start()
+            self._auto_initialized = True
+
+    async def process_file(self, file_path: str) -> AsyncIterator[CascadeResult]:
+        """
+        处理音频文件
+
+        Args:
+            file_path: 音频文件路径
+
+        Yields:
+            CascadeResult: 处理结果
+        """
+        # 自动初始化
+        await self._ensure_auto_initialized()
+
+        # 获取处理实例
+        instance = await self._get_or_create_instance("file_processor")
+
+        # 验证文件存在
+        if not os.path.exists(file_path):
+            from .. import AudioFormatError
+            raise AudioFormatError(f"音频文件不存在: {file_path}")
+
+        # 读取和处理音频文件
+        audio_data = self._read_audio_file(file_path, target_sample_rate=16000)
+        audio_frames = self._generate_audio_frames(audio_data)
+
+        # 逐帧处理
+        for frame_data in audio_frames:
+            results = instance.process_audio_chunk(frame_data)
+            for result in results:
+                yield result
+
     async def process_stream(
         self,
         audio_stream: AsyncIterator[bytes],
@@ -82,16 +134,16 @@ class StreamProcessor:
     ) -> AsyncIterator[CascadeResult]:
         """
         处理音频流
-        
+
         Args:
             audio_stream: 音频数据流
             stream_id: 流标识符，用于实例管理
-            
+
         Yields:
             处理结果
         """
-        if not self.is_running:
-            raise RuntimeError("StreamProcessor 未启动")
+        # 自动初始化
+        await self._ensure_auto_initialized()
 
         # 获取或创建处理实例
         instance = await self._get_or_create_instance(stream_id)
@@ -133,15 +185,15 @@ class StreamProcessor:
     async def process_chunk(self, audio_data: bytes) -> list[CascadeResult]:
         """
         处理单个音频块
-        
+
         Args:
             audio_data: 音频数据
-            
+
         Returns:
             处理结果列表
         """
-        if not self.is_running:
-            raise RuntimeError("StreamProcessor 未启动")
+        # 自动初始化
+        await self._ensure_auto_initialized()
 
         # 获取可用实例
         instance = await self._get_available_instance()
@@ -170,6 +222,59 @@ class StreamProcessor:
             self.error_count += 1
             logger.error(f"处理音频块失败: {e}")
             raise
+
+    def _read_audio_file(self, file_path: str, target_sample_rate: int = 16000):
+        """
+        读取音频文件
+
+        Args:
+            file_path: 音频文件路径
+            target_sample_rate: 目标采样率
+
+        Returns:
+            音频数据数组
+        """
+        try:
+            audio_data = read_audio(file_path, sampling_rate=target_sample_rate)
+            return audio_data
+        except ImportError as err:
+            # 如果silero-vad不可用
+            raise ImportError("silero-vad未安装，无法读取音频文件") from err
+
+
+    def _generate_audio_frames(self, audio_data, frame_size: int = 512) -> list:
+        """
+        生成512样本的音频帧
+
+        Args:
+            audio_data: 音频数据
+            frame_size: 帧大小（样本数）
+
+        Returns:
+            音频帧列表（bytes格式）
+        """
+        frames = []
+
+        # 按512样本分块
+        for i in range(0, len(audio_data), frame_size):
+            frame = audio_data[i:i + frame_size]
+
+            # 如果最后一帧不足512样本，跳过
+            if len(frame) < frame_size:
+                break
+
+            # 如果是PyTorch Tensor，先转换为numpy数组
+            if hasattr(frame, 'numpy') and callable(getattr(frame, 'numpy', None)):
+                frame = frame.numpy()
+            elif hasattr(frame, 'detach') and callable(getattr(frame, 'detach', None)):
+                frame = frame.detach().numpy()
+
+            frame_int16 = (frame * 32767).astype(np.int16)
+            frame_bytes = frame_int16.tobytes()
+            frames.append(frame_bytes)
+
+        return frames
+
 
     async def _get_or_create_instance(self, stream_id: str | None) -> CascadeInstance:
         """获取或创建处理实例"""
@@ -217,13 +322,14 @@ class StreamProcessor:
         return next(iter(self.instances.values()))
 
     async def _create_instance(self, instance_id: str) -> CascadeInstance:
-        """创建新的处理实例"""
+        """创建新的处理实例并确保初始化完成"""
         instance = CascadeInstance(
             instance_id=instance_id,
             config=self.config
         )
-        # 异步初始化VAD后端
-        await instance.vad_backend.initialize()
+        # 立即初始化VAD后端，确保实例可用
+        await instance._ensure_initialized()
+        logger.info(f"CascadeInstance {instance_id} 创建并完成初始化")
         return instance
 
     async def _cleanup_oldest_instance(self) -> None:

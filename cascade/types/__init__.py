@@ -315,14 +315,14 @@ class VADConfig(BaseModel):
     )
 
     # 高级参数
-    min_speech_duration_ms: int = Field(
+    speech_pad_ms: int = Field(
         default=100,
         description="最小语音段时长（毫秒）",
         ge=10
     )
-    max_silence_duration_ms: int = Field(
-        default=500,
-        description="最大静音段时长（毫秒）",
+    min_silence_duration_ms: int = Field(
+        default=100,
+        description="最小静音段时长（毫秒），用于分隔语音",
         ge=50
     )
     energy_threshold: float | None = Field(
@@ -363,11 +363,11 @@ class VADConfig(BaseModel):
             raise ValueError('重叠时长不能超过块时长的50%')
 
         # 验证时间参数一致性
-        if self.min_speech_duration_ms > self.chunk_duration_ms:
+        if self.speech_pad_ms > self.chunk_duration_ms:
             raise ValueError('最小语音段时长不能超过块时长')
 
-        if self.max_silence_duration_ms > self.chunk_duration_ms * 2:
-            raise ValueError('最大静音段时长过长')
+        if self.min_silence_duration_ms > self.chunk_duration_ms * 2:
+            raise ValueError('最小静音段时长过长')
 
         # 验证延迟补偿参数
         if self.compensation_ms > self.chunk_duration_ms:

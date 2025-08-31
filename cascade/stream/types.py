@@ -126,7 +126,7 @@ class Config(BaseModel):
 
     # VAD配置
     vad_threshold: float = Field(default=0.5, description="VAD检测阈值", ge=0.0, le=1.0)
-    min_speech_duration_ms: int = Field(default=100, description="最小语音时长(ms)")
+    speech_pad_ms: int = Field(default=100, description="语音段填充时长(ms)")
     min_silence_duration_ms: int = Field(default=100, description="最小静音时长(ms)")
 
     # 性能配置
@@ -141,6 +141,25 @@ class Config(BaseModel):
     class Config:
         extra = "forbid"
         frozen = True  # 配置不可变
+
+    @classmethod
+    def create_with_overrides(cls, **kwargs) -> 'Config':
+        """
+        创建配置并覆盖指定参数
+        
+        Args:
+            **kwargs: 要覆盖的配置参数
+            
+        Returns:
+            Config: 新的配置实例
+            
+        Example:
+            config = Config.create_with_overrides(
+                vad_threshold=0.7,
+                max_instances=3
+            )
+        """
+        return cls(**kwargs)
 
     @property
     def buffer_size_seconds(self) -> float:

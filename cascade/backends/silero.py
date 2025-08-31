@@ -169,11 +169,13 @@ class SileroVADBackend(VADBackend):
             getattr(self._thread_local, 'current_sample_rate', None) != sample_rate):
 
             VADIterator = self._thread_local.VADIterator_class
-            logger.info(f"[DEBUG] 创建VADIterator，采样率: {sample_rate}, threshold: {self.config.threshold}")
+            logger.info(f"[DEBUG] 创建VADIterator，采样率: {sample_rate}, threshold: {self.config.threshold}, min_silence: {self.config.min_silence_duration_ms}, speech_pad: {self.config.speech_pad_ms}")
             self._thread_local.vad_iterator = VADIterator(
                 model,
                 sampling_rate=sample_rate,
-                threshold=self.config.threshold  # 确保传递threshold参数
+                threshold=self.config.threshold,
+                min_silence_duration_ms=self.config.min_silence_duration_ms,
+                speech_pad_ms=self.config.speech_pad_ms
             )
             logger.info("[DEBUG] VADIterator创建完成")
             self._thread_local.current_sample_rate = sample_rate
@@ -305,18 +307,11 @@ class SileroVADBackend(VADBackend):
                 return_seconds=self._silero_config.return_seconds
             )
             ##### result“时间戳”是用秒做单位（True）还是继续用采样点序号做单位（False，默认）
-            ### return_seconds=False
-            # result: {'start': 11808}
-            # result: {'end': 82400}
-
-            ### return_seconds=True
-            # result: {'start': 0.8}
-            # result: {'end': 5.0}
-
-            # logger.info(f"silero-vad的原始推理结果:{result}")
-
-            # 保存原始结果到线程本地存储，供测试脚本使用
-            self._thread_local.last_vad_result = result
+            ### return_seconds=False          ### return_seconds=True
+            #
+            # result: {'start': 11808}        result: {'start': 0.8}
+            #
+            # result: {'end': 82400}          result: {'end': 5.0}
 
             if result:
                 # VADIterator返回语音段边界信息

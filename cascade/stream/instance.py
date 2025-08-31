@@ -48,9 +48,18 @@ class CascadeInstance:
         # 1:1:1绑定：一个实例一个缓冲区
         self.frame_buffer = FrameAlignedBuffer(max_buffer_samples=32000)  # 2秒缓冲
 
-        # VAD后端和状态机
-        vad_config = VADConfig(threshold=config.vad_threshold)
-        self.vad_backend = SileroVADBackend(vad_config)
+        # 延迟初始化VAD后端
+        self._vad_backend = None
+        self._initialized = False
+        # 确保 chunk_duration_ms 大于 speech_pad_ms，避免验证错误
+        self._vad_config = VADConfig(
+            threshold=config.vad_threshold,
+            speech_pad_ms=config.speech_pad_ms,  # 使用 speech_pad_ms 参数
+            min_silence_duration_ms=config.min_silence_duration_ms,
+            chunk_duration_ms=max(500, config.speech_pad_ms * 2)  # 确保块时长足够大
+        )
+
+        # 立即初始化状态机（无需异步）
         self.state_machine = VADStateMachine(instance_id)
 
         # 统计信息
@@ -60,6 +69,19 @@ class CascadeInstance:
         self.error_count = 0
 
         logger.info(f"CascadeInstance {instance_id} 初始化完成")
+
+    async def _ensure_initialized(self):
+        """确保VAD后端已初始化"""
+        if not self._initialized:
+            self._vad_backend = SileroVADBackend(self._vad_config)
+            await self._vad_backend.initialize()
+            self._initialized = True
+            logger.info(f"CascadeInstance {self.instance_id} VAD后端初始化完成")
+
+    @property
+    def vad_backend(self):
+        """VAD后端属性，保持向后兼容"""
+        return self._vad_backend
 
     def process_audio_chunk(self, audio_data: bytes) -> list[CascadeResult]:
         """
@@ -124,8 +146,12 @@ class CascadeInstance:
                 sample_rate=16000
             )
 
-            # VAD检测
-            vad_result = self.vad_backend.process_chunk(audio_chunk)
+            # VAD检测（确保后端已初始化）
+            if not self._initialized or self._vad_backend is None:
+                logger.warning(f"CascadeInstance {self.instance_id} VAD后端未初始化，跳过处理")
+                return None
+
+            vad_result = self._vad_backend.process_chunk(audio_chunk)
 
             # 转换VAD结果为字典格式
             vad_dict = None

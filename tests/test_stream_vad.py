@@ -90,30 +90,28 @@ async def test_stream_vad_processing(audio_file: str):
 
     try:
         # 使用StreamProcessor进行流式处理
-        config = cascade.create_default_config()
-        async with cascade.StreamProcessor(config) as processor:
+        # config = cascade.create_default_config()
+        async with cascade.StreamProcessor() as processor:
             print("🚀 StreamProcessor 已启动")
 
             # 模拟音频流并处理
             audio_stream = simulate_audio_stream(audio_file, chunk_size=4096)
 
             async for result in processor.process_stream(audio_stream, stream_id="test_stream"):
-                if result.result_type == "segment":
+                if result.result_type == "segment" and result.segment:
                     segment_count += 1
                     segment = result.segment
 
-                    if segment:  # 确保segment不为None
-                        # 打印语音段信息
-                        start_ms = segment.start_timestamp_ms
-                        end_ms = segment.end_timestamp_ms
-                        duration_ms = segment.duration_ms
+                    start_ms = segment.start_timestamp_ms
+                    end_ms = segment.end_timestamp_ms
+                    duration_ms = segment.duration_ms
 
-                        print(f"\n🎤 语音段 {segment_count}: {start_ms:.0f}ms - {end_ms:.0f}ms (时长: {duration_ms:.0f}ms)")
+                    print(f"\n🎤 语音段 {segment_count}: {start_ms:.0f}ms - {end_ms:.0f}ms (时长: {duration_ms:.0f}ms)")
 
-                        # 保存语音段为WAV文件
-                        output_file = output_dir / f"stream_speech_segment_{segment_count}_{start_ms:.0f}ms-{end_ms:.0f}ms.wav"
-                        save_audio_segment(segment.audio_data, output_file)
-                        print(f"💾 已保存: {output_file}")
+                    # 保存语音段为WAV文件
+                    output_file = output_dir / f"stream_speech_segment_{segment_count}_{start_ms:.0f}ms-{end_ms:.0f}ms.wav"
+                    save_audio_segment(segment.audio_data, output_file)
+                    print(f"💾 已保存: {output_file}")
 
                 else:
                     # 单帧结果
