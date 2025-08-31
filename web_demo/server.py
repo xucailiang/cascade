@@ -8,12 +8,10 @@ Cascade WebSocket VAD 演示服务器
 - 保证了逻辑的同步性和可预测性，修复了此前所有版本的问题。
 """
 
-import asyncio
 import base64
 import json
 import logging
 import uuid
-from typing import Dict
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -46,9 +44,9 @@ class VADConfig(BaseModel):
 # --- 会话管理器 ---
 class SessionManager:
     def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}
-        self.processors: Dict[str, cascade.StreamProcessor] = {}
-        self.configs: Dict[str, VADConfig] = {}
+        self.active_connections: dict[str, WebSocket] = {}
+        self.processors: dict[str, cascade.StreamProcessor] = {}
+        self.configs: dict[str, VADConfig] = {}
 
     async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
@@ -104,7 +102,7 @@ class SessionManager:
                     if segment.audio_data and config:
                         # 直接对原始PCM数据进行Base64编码，将WAV转换移到前端
                         audio_data_b64 = base64.b64encode(segment.audio_data).decode('utf-8')
-                    
+
                     response_dict = {
                         "type": "segment",
                         "segment": {
@@ -115,7 +113,7 @@ class SessionManager:
                             "audio_data": audio_data_b64,
                         }
                     }
-                
+
                 if response_dict:
                     await websocket.send_json(response_dict)
         except Exception as e:
@@ -141,13 +139,13 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 try:
                     data = json.loads(message["text"])
                     msg_type = data.get("type")
-                    
+
                     if msg_type == "start":
                         config = VADConfig(**data.get("config", {}))
                         await manager.start_session(client_id, config)
                     elif msg_type == "stop":
                         await manager.stop_session(client_id)
-                        
+
                 except Exception as e:
                     logger.error(f"处理文本消息失败 from {client_id}: {e}")
                     await websocket.send_json({"type": "error", "message": f"无效消息: {e}"})
