@@ -53,7 +53,7 @@ class CascadePerformanceTester:
         """运行所有测试"""
         print("🚀 开始Cascade性能测试")
 
-        audio_file = "/home/justin/workspace/cascade/新能源汽车和燃油车相比有哪些优缺点？.wav"
+        audio_file = "我现在开始录音，理论上会有两个文件.wav"
         if not os.path.exists(audio_file):
             print(f"❌ 测试音频文件不存在: {audio_file}")
             return
