@@ -32,7 +32,7 @@ class FrameAlignedBuffer:
         初始化简化帧对齐缓冲区
         
         Args:
-            max_buffer_samples: 最大缓冲样本数，优化后默认降低到4000（0.25秒@16kHz）
+            max_buffer_samples: 最大缓冲样本数，默认为4000（0.25秒@16kHz）
         """
         self._data = b''  # 使用bytes而不是bytearray，性能更优
         self._frame_size_bytes = 1024  # 512样本 * 2字节

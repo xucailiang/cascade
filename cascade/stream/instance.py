@@ -46,7 +46,7 @@ class CascadeInstance:
         self.config = config
 
         # 1:1:1绑定：一个实例一个缓冲区（优化版：减小缓冲区大小）
-        self.frame_buffer = FrameAlignedBuffer(max_buffer_samples=64000) 
+        self.frame_buffer = FrameAlignedBuffer(max_buffer_samples=128000) 
 
         # 延迟初始化VAD后端
         self._vad_backend = None
