@@ -10,7 +10,8 @@ import wave
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-import cascade
+from cascade.stream import StreamProcessor
+from cascade.stream.types import Config
 
 
 async def simulate_audio_stream(audio_file: str, chunk_size: int = 4096) -> AsyncIterator[bytes]:
@@ -90,8 +91,8 @@ async def test_stream_vad_processing(audio_file: str):
 
     try:
         # 使用StreamProcessor进行流式处理
-        # config = cascade.create_default_config()
-        async with cascade.StreamProcessor() as processor:
+        config = Config()
+        async with StreamProcessor(config) as processor:
             print("🚀 StreamProcessor 已启动")
 
             # 模拟音频流并处理

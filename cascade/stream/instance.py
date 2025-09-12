@@ -7,12 +7,14 @@ Cascade处理实例
 
 import logging
 import time
+from typing import Optional, Dict, Any, cast
 
 import numpy as np
 
 from ..backends.silero import SileroVADBackend
 from ..buffer.frame_aligned_buffer import FrameAlignedBuffer
 from ..types import AudioChunk, VADConfig
+from ..types.errors import CascadeError, ErrorCode, ErrorSeverity, ModelLoadError
 from .state_machine import VADStateMachine
 from .types import AUDIO_FRAME_SIZE, AudioFrame, CascadeResult, Config
 
@@ -45,19 +47,20 @@ class CascadeInstance:
         self.instance_id = instance_id
         self.config = config
 
-        # 1:1:1绑定：一个实例一个缓冲区（优化版：减小缓冲区大小）
+        # 1:1:1绑定：一个实例一个缓冲区
         self.frame_buffer = FrameAlignedBuffer(max_buffer_samples=128000) 
 
-        # 延迟初始化VAD后端
-        self._vad_backend = None
-        self._initialized = False
-        # 确保 chunk_duration_ms 大于 speech_pad_ms，避免验证错误
+        # 配置VAD
         self._vad_config = VADConfig(
             threshold=config.vad_threshold,
-            speech_pad_ms=config.speech_pad_ms,  # 使用 speech_pad_ms 参数
+            speech_pad_ms=config.speech_pad_ms,
             min_silence_duration_ms=config.min_silence_duration_ms,
             chunk_duration_ms=max(500, config.speech_pad_ms * 2)  # 确保块时长足够大
         )
+        
+        # VAD后端（初始化时为None）
+        self._vad_backend: Optional[SileroVADBackend] = None
+        self.is_initialized = False
 
         # 立即初始化状态机（无需异步）
         self.state_machine = VADStateMachine(instance_id)
@@ -68,20 +71,26 @@ class CascadeInstance:
         self.total_processing_time_ms = 0.0
         self.error_count = 0
 
-        logger.info(f"CascadeInstance {instance_id} 初始化完成")
+        logger.info(f"CascadeInstance {instance_id} 创建完成")
 
-    async def _ensure_initialized(self):
-        """确保VAD后端已初始化"""
-        if not self._initialized:
+    async def initialize(self) -> None:
+        """初始化VAD后端"""
+        if self.is_initialized:
+            logger.warning(f"CascadeInstance {self.instance_id} 已初始化")
+            return
+            
+        try:
+            # 初始化VAD后端
             self._vad_backend = SileroVADBackend(self._vad_config)
             await self._vad_backend.initialize()
-            self._initialized = True
-            logger.info(f"CascadeInstance {self.instance_id} VAD后端初始化完成")
-
-    @property
-    def vad_backend(self):
-        """VAD后端属性，保持向后兼容"""
-        return self._vad_backend
+            self.is_initialized = True
+            logger.info(f"CascadeInstance {self.instance_id} 初始化完成")
+        except Exception as e:
+            logger.error(f"CascadeInstance {self.instance_id} 初始化失败: {e}")
+            raise ModelLoadError(
+                "silero-vad", 
+                f"初始化失败: {e}"
+            ) from e
 
     def process_audio_chunk(self, audio_data: bytes) -> list[CascadeResult]:
         """
@@ -95,6 +104,15 @@ class CascadeInstance:
         """
         if not audio_data:
             return []
+            
+        # 状态检查
+        if not self.is_initialized or self._vad_backend is None:
+            raise CascadeError(
+                f"实例未初始化: {self.instance_id}",
+                ErrorCode.INVALID_STATE,
+                ErrorSeverity.HIGH,
+                {"instance_id": self.instance_id}
+            )
 
         results = []
 
@@ -113,10 +131,16 @@ class CascadeInstance:
         except Exception as e:
             self.error_count += 1
             logger.error(f"CascadeInstance {self.instance_id} 处理音频块失败: {e}")
+            raise CascadeError(
+                f"处理音频块失败: {e}",
+                ErrorCode.PROCESSING_FAILED,
+                ErrorSeverity.HIGH,
+                {"instance_id": self.instance_id}
+            ) from e
 
         return results
 
-    def _process_single_frame(self, frame_data: bytes) -> CascadeResult | None:
+    def _process_single_frame(self, frame_data: bytes) -> Optional[CascadeResult]:
         """
         处理单个512样本帧
         
@@ -146,11 +170,8 @@ class CascadeInstance:
                 sample_rate=16000
             )
 
-            # VAD检测（确保后端已初始化）
-            if not self._initialized or self._vad_backend is None:
-                logger.warning(f"CascadeInstance {self.instance_id} VAD后端未初始化，跳过处理")
-                return None
-
+            # VAD检测 - 使用断言告诉类型检查器_vad_backend不为None
+            assert self._vad_backend is not None, "VAD后端未初始化"
             vad_result = self._vad_backend.process_chunk(audio_chunk)
 
             # 转换VAD结果为字典格式
@@ -215,7 +236,7 @@ class CascadeInstance:
             return 0.0
         return self.error_count / self.total_frames_processed
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> Dict[str, Any]:
         """获取实例统计信息"""
         return {
             'instance_id': self.instance_id,
@@ -225,7 +246,9 @@ class CascadeInstance:
             'error_rate': self.error_rate,
             'buffer_usage_ratio': self.buffer_usage_ratio,
             'available_frames': self.available_frames,
+            'initialized': self.is_initialized
         }
 
     def __str__(self) -> str:
-        return f"CascadeInstance({self.instance_id}, frames={self.total_frames_processed})"
+        status = "initialized" if self.is_initialized else "not initialized"
+        return f"CascadeInstance({self.instance_id}, {status}, frames={self.total_frames_processed})"
