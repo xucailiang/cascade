@@ -64,8 +64,10 @@ class SessionManager:
             await self.stop_session(client_id)
 
         # 直接使用前端传入的config字典，Pydantic模型确保了字段的正确性
-        processor = cascade.create_processor(**config.model_dump())
-        await processor.start()
+        # 创建配置对象
+        cascade_config = cascade.Config(**config.model_dump())
+        processor = cascade.StreamProcessor(cascade_config)
+        await processor.initialize()
         self.processors[client_id] = processor
         self.configs[client_id] = config
         logger.info(f"为客户端 {client_id} 启动了新的处理会话")
@@ -74,7 +76,7 @@ class SessionManager:
         self.configs.pop(client_id, None)
         processor = self.processors.pop(client_id, None)
         if processor:
-            await processor.stop()
+            await processor.close()
             logger.info(f"客户端 {client_id} 的处理会话已停止")
 
     async def process_chunk(self, client_id: str, chunk: bytes):

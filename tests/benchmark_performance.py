@@ -13,20 +13,17 @@ import asyncio
 import os
 import sys
 import time
-from dataclasses import dataclass
-
 import numpy as np
 import psutil
+from pydantic import BaseModel
 
 # 添加项目路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import cascade
-from cascade.stream.processor import StreamProcessor
 
 
-@dataclass
-class BenchmarkResult:
+class BenchmarkResult(BaseModel):
     """基准测试结果"""
     test_name: str
     duration_seconds: float
@@ -90,16 +87,24 @@ class PerformanceBenchmark:
         success_count = 0
 
         try:
-            async for result in cascade.process_audio_file(audio_data):
-                frame_time = time.time()
-                latency_ms = (frame_time - start_time) * 1000
-                latencies.append(latency_ms)
-                total_frames += 1
-                success_count += 1
+            # 创建配置和处理器
+            config = cascade.Config()
+            async with cascade.StreamProcessor(config) as processor:
+                # 分块处理音频数据
+                chunk_size = 1024  # 1KB chunks
+                for i in range(0, len(audio_data), chunk_size):
+                    chunk = audio_data[i:i + chunk_size]
+                    
+                    frame_time = time.time()
+                    results = await processor.process_chunk(chunk)
+                    latency_ms = (time.time() - frame_time) * 1000
+                    latencies.append(latency_ms)
+                    total_frames += len(results)
+                    success_count += len(results)
 
-                # 限制测试时间
-                if time.time() - start_time > duration + 2:
-                    break
+                    # 限制测试时间
+                    if time.time() - start_time > duration + 2:
+                        break
 
         except Exception as e:
             print(f"❌ 测试过程中出错: {e}")
@@ -141,14 +146,8 @@ class PerformanceBenchmark:
         # 生成测试音频
         audio_data = self.generate_test_audio(duration)
 
-        # 创建配置和处理器
-        config = cascade.create_default_config()
-        processor = StreamProcessor(config)
-
         # 测量开始时的资源
         start_resources = self.measure_system_resources()
-
-        await processor.start()
 
         # 开始测试
         start_time = time.time()
@@ -157,29 +156,29 @@ class PerformanceBenchmark:
         success_count = 0
 
         try:
-            # 分块处理
-            chunk_size = 1024  # 1KB chunks
-            for i in range(0, len(audio_data), chunk_size):
-                chunk = audio_data[i:i + chunk_size]
+            # 创建配置和处理器
+            config = cascade.Config()
+            async with cascade.StreamProcessor(config) as processor:
+                # 分块处理
+                chunk_size = 1024  # 1KB chunks
+                for i in range(0, len(audio_data), chunk_size):
+                    chunk = audio_data[i:i + chunk_size]
 
-                chunk_start = time.time()
-                results = await processor.process_chunk(chunk)
-                chunk_end = time.time()
+                    chunk_start = time.time()
+                    results = await processor.process_chunk(chunk)
+                    chunk_end = time.time()
 
-                latency_ms = (chunk_end - chunk_start) * 1000
-                latencies.append(latency_ms)
-                total_frames += len(results)
-                success_count += len(results)
+                    latency_ms = (chunk_end - chunk_start) * 1000
+                    latencies.append(latency_ms)
+                    total_frames += len(results)
+                    success_count += len(results)
 
-                # 限制测试时间
-                if time.time() - start_time > duration + 2:
-                    break
+                    # 限制测试时间
+                    if time.time() - start_time > duration + 2:
+                        break
 
         except Exception as e:
             print(f"❌ 测试过程中出错: {e}")
-
-        finally:
-            await processor.stop()
 
         end_time = time.time()
         test_duration = end_time - start_time
@@ -226,11 +225,17 @@ class PerformanceBenchmark:
 
         async def process_task(task_id: int):
             """单个处理任务"""
-            results = []
+            total_results = 0
             try:
-                async for result in cascade.process_audio_file(audio_data):
-                    results.append(result)
-                return len(results)
+                config = cascade.Config()
+                async with cascade.StreamProcessor(config) as processor:
+                    # 分块处理音频数据
+                    chunk_size = 1024  # 1KB chunks
+                    for i in range(0, len(audio_data), chunk_size):
+                        chunk = audio_data[i:i + chunk_size]
+                        results = await processor.process_chunk(chunk)
+                        total_results += len(results)
+                    return total_results
             except Exception as e:
                 print(f"❌ 任务{task_id}出错: {e}")
                 return 0

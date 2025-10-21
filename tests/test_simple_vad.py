@@ -2,6 +2,13 @@
 """
 简化的VAD测试脚本
 使用Cascade进行语音活动检测，并保存每个检测到的语音段
+
+改造说明：
+- 使用最新的StreamProcessor API
+- 使用cascade.Config()创建配置
+- 使用async with上下文管理器
+- 使用result.is_speech_segment检查结果类型
+- 添加统计信息获取
 """
 
 import asyncio
@@ -30,30 +37,51 @@ async def test_vad_with_audio_file(audio_file: str):
     output_dir.mkdir(exist_ok=True)
 
     segment_count = 0
+    frame_count = 0
 
     try:
-        # 使用cascade处理音频文件
-        async for result in cascade.process_audio_file(audio_file):
-            if result.result_type == "segment":
-                segment_count += 1
-                segment = result.segment
+        # 创建配置
+        config = cascade.Config(
+            vad_threshold=0.5,
+            min_silence_duration_ms=500,
+            speech_pad_ms=300
+        )
+        
+        # 使用StreamProcessor处理音频文件
+        async with cascade.StreamProcessor(config) as processor:
+            print("✅ StreamProcessor已启动")
+            
+            async for result in processor.process_file(audio_file):
+                if result.is_speech_segment and result.segment:
+                    segment_count += 1
+                    segment = result.segment
 
-                # 打印语音段信息
-                start_ms = segment.start_timestamp_ms
-                end_ms = segment.end_timestamp_ms
-                duration_ms = segment.duration_ms
+                    # 打印语音段信息
+                    start_ms = int(segment.start_timestamp_ms)
+                    end_ms = int(segment.end_timestamp_ms)
+                    duration_ms = int(segment.duration_ms)
 
-                print(f"🎤 语音段 {segment_count}: {start_ms:.0f}ms - {end_ms:.0f}ms (时长: {duration_ms:.0f}ms)")
+                    print(f"🎤 语音段 {segment_count}: {start_ms}ms - {end_ms}ms (时长: {duration_ms}ms)")
 
-                # 保存语音段为WAV文件
-                output_file = output_dir / f"speech_segment_{segment_count}_{start_ms:.0f}ms-{end_ms:.0f}ms.wav"
-                save_audio_segment(segment.audio_data, output_file)
-                print(f"💾 已保存: {output_file}")
+                    # 保存语音段为WAV文件
+                    output_file = output_dir / f"speech_segment_{segment_count}_{start_ms}ms-{end_ms}ms.wav"
+                    await save_audio_segment(segment.audio_data, output_file)
+                    print(f"💾 已保存: {output_file}")
 
-            else:
-                # 单帧结果，不需要特别处理
-                frame = result.frame
-                print(f"🔇 单帧: {frame.timestamp_ms:.0f}ms", end="\r")
+                elif result.frame:
+                    # 单帧结果
+                    frame_count += 1
+                    frame = result.frame
+                    if frame_count % 50 == 0:  # 每50帧打印一次
+                        print(f"🔇 单帧 {frame_count}: {frame.timestamp_ms:.0f}ms", end="\r")
+            
+            # 获取统计信息
+            stats = processor.get_stats()
+            print(f"\n📊 处理统计:")
+            print(f"   🎤 语音段数量: {segment_count}")
+            print(f"   🔇 单帧数量: {frame_count}")
+            print(f"   📦 总处理块: {stats.total_chunks_processed}")
+            print(f"   ⏱️  平均处理时间: {stats.average_processing_time_ms:.2f}ms")
 
     except Exception as e:
         print(f"❌ 处理过程中出错: {e}")
@@ -64,7 +92,7 @@ async def test_vad_with_audio_file(audio_file: str):
         print(f"📁 语音段已保存到: {output_dir.absolute()}")
 
 
-def save_audio_segment(audio_data: bytes, output_file: Path):
+async def save_audio_segment(audio_data: bytes, output_file: Path):
     """
     保存音频段为WAV文件
     

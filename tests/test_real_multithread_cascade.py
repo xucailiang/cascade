@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """
-真正的多线程多CascadeInstance实例测试脚本
+真正的多线程多StreamProcessor实例测试脚本
 
 使用ThreadPoolExecutor实现真正的多线程并发测试，
-验证每个线程运行独立的CascadeInstance实例的流式音频处理能力。
+验证每个线程运行独立的StreamProcessor实例的流式音频处理能力。
+
+改造说明：
+- 使用最新的cascade模块API
+- 使用cascade.Config()和cascade.StreamProcessor()
+- 使用result.is_speech_segment检查结果类型
+- 移除stream_id参数（新API不需要）
+- 简化配置创建
 
 改进点：
 1. 使用真正的多线程而不是异步并发
@@ -21,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List
 
-from cascade.stream import StreamProcessor, Config
+import cascade
 from pydantic import BaseModel, Field
 
 # 配置日志
@@ -36,8 +43,7 @@ class ThreadTestResult(BaseModel):
     """线程测试结果"""
     thread_id: int = Field(description="线程ID")
     thread_name: str = Field(description="线程名称")
-    stream_id: str = Field(description="流标识符")
-    instance_id: str = Field(description="CascadeInstance ID")
+    processor_id: str = Field(description="StreamProcessor ID")
     
     # 处理统计
     total_chunks_processed: int = Field(default=0, description="总处理块数")
@@ -134,17 +140,15 @@ class RealMultithreadTestSuite:
             ThreadTestResult: 线程处理结果
         """
         thread_name = threading.current_thread().name
-        # 基于线程ID和线程名生成唯一的stream_id
-        stream_id = f"thread_{thread_id}_{threading.get_ident()}"
+        processor_id = f"processor_{thread_id}_{threading.get_ident()}"
         
-        logger.info(f"线程 {thread_id} ({thread_name}) 开始处理，stream_id: {stream_id}")
+        logger.info(f"线程 {thread_id} ({thread_name}) 开始处理，processor_id: {processor_id}")
         
         # 初始化结果对象
         result = ThreadTestResult(
             thread_id=thread_id,
             thread_name=thread_name,
-            stream_id=stream_id,
-            instance_id="",
+            processor_id=processor_id,
             processing_start_time=0.0  # 稍后设置
         )
         
@@ -156,10 +160,14 @@ class RealMultithreadTestSuite:
             model_load_start = time.time()
             
             # 创建独立的StreamProcessor配置
-            config = Config(max_instances=1)  # 每个线程只需要1个实例
+            config = cascade.Config(
+                vad_threshold=0.5,
+                min_silence_duration_ms=500,
+                speech_pad_ms=300
+            )
             
             # 创建StreamProcessor（这里会加载模型）
-            processor = StreamProcessor(config)
+            processor = cascade.StreamProcessor(config)
             
             # 启动processor（完成模型初始化）
             import asyncio
@@ -169,65 +177,55 @@ class RealMultithreadTestSuite:
             asyncio.set_event_loop(loop)
             
             try:
-                # 启动处理器
-                loop.run_until_complete(processor.start())
-                
-                # 模型加载完成
-                model_load_end = time.time()
-                result.model_load_time_ms = (model_load_end - model_load_start) * 1000
-                
-                logger.info(f"线程 {thread_id} 模型加载完成，耗时: {result.model_load_time_ms:.1f}ms")
-                
-                # 2. 音频处理阶段（从这里开始计时）
-                result.processing_start_time = time.time()
-                
                 # 定义异步处理函数
                 async def process_audio_stream():
                     nonlocal segment_count, frame_count
                     
-                    # 创建异步音频流生成器（用于process_stream）
-                    async def audio_stream_generator():
-                        for audio_chunk in self.audio_chunks:
-                            if audio_chunk:
-                                yield audio_chunk
-                    
-                    # 使用process_stream API（支持stream_id隔离）
-                    audio_stream = audio_stream_generator()
-                    
-                    async for cascade_result in processor.process_stream(audio_stream, stream_id=stream_id):
-                        if cascade_result.result_type == "segment" and cascade_result.segment:
-                            segment_count += 1
-                            segment = cascade_result.segment
-                            
-                            # 记录实例ID
-                            if not result.instance_id:
-                                result.instance_id = cascade_result.instance_id
-                            
-                            start_ms = segment.start_timestamp_ms
-                            end_ms = segment.end_timestamp_ms
-                            duration_ms = segment.duration_ms
-                            
-                            logger.info(f"线程 {thread_id} 语音段 {segment_count}: {start_ms:.0f}ms-{end_ms:.0f}ms ({duration_ms:.0f}ms)")
-                            
-                            # 保存语音段
-                            self._save_segment_for_thread(thread_id, segment_count, segment)
-                            
-                        elif cascade_result.result_type == "frame":
-                            frame_count += 1
-                            if not result.instance_id:
-                                result.instance_id = cascade_result.instance_id
+                    # 使用async with启动处理器
+                    async with processor as proc:
+                        # 模型加载完成
+                        model_load_end = time.time()
+                        result.model_load_time_ms = (model_load_end - model_load_start) * 1000
+                        
+                        logger.info(f"线程 {thread_id} 模型加载完成，耗时: {result.model_load_time_ms:.1f}ms")
+                        
+                        # 2. 音频处理阶段（从这里开始计时）
+                        result.processing_start_time = time.time()
+                        
+                        # 创建异步音频流生成器（用于process_stream）
+                        async def audio_stream_generator():
+                            for audio_chunk in self.audio_chunks:
+                                if audio_chunk:
+                                    yield audio_chunk
+                        
+                        # 使用process_stream API
+                        audio_stream = audio_stream_generator()
+                        
+                        async for cascade_result in proc.process_stream(audio_stream):
+                            if cascade_result.is_speech_segment and cascade_result.segment:
+                                segment_count += 1
+                                segment = cascade_result.segment
+                                
+                                start_ms = int(segment.start_timestamp_ms)
+                                end_ms = int(segment.end_timestamp_ms)
+                                duration_ms = int(segment.duration_ms)
+                                
+                                logger.info(f"线程 {thread_id} 语音段 {segment_count}: {start_ms}ms-{end_ms}ms ({duration_ms}ms)")
+                                
+                                # 保存语音段（同步调用）
+                                self._save_segment_for_thread_sync(thread_id, segment_count, segment)
+                                
+                            elif cascade_result.frame:
+                                frame_count += 1
+                        
+                        # 获取处理器统计信息
+                        stats = proc.get_stats()
+                        result.total_chunks_processed = stats.total_chunks_processed
+                        
+                        logger.info(f"线程 {thread_id} 处理完成: {segment_count} 语音段, {frame_count} 单帧")
                 
                 # 运行异步处理
                 loop.run_until_complete(process_audio_stream())
-                
-                # 获取处理器统计信息
-                stats = processor.get_stats()
-                result.total_chunks_processed = stats.total_chunks_processed
-                
-                logger.info(f"线程 {thread_id} 处理完成: {segment_count} 语音段, {frame_count} 单帧")
-                
-                # 停止处理器
-                loop.run_until_complete(processor.stop())
                 
             finally:
                 loop.close()
@@ -248,15 +246,15 @@ class RealMultithreadTestSuite:
         
         return result
 
-    def _save_segment_for_thread(self, thread_id: int, segment_count: int, segment):
-        """为指定线程保存语音段"""
+    def _save_segment_for_thread_sync(self, thread_id: int, segment_count: int, segment):
+        """为指定线程保存语音段（同步版本）"""
         try:
             thread_dir = self.output_dir / f"thread_{thread_id}"
             thread_dir.mkdir(exist_ok=True)
             
-            start_ms = segment.start_timestamp_ms
-            end_ms = segment.end_timestamp_ms
-            output_file = thread_dir / f"segment_{segment_count}_{start_ms:.0f}ms-{end_ms:.0f}ms.wav"
+            start_ms = int(segment.start_timestamp_ms)
+            end_ms = int(segment.end_timestamp_ms)
+            output_file = thread_dir / f"segment_{segment_count}_{start_ms}ms-{end_ms}ms.wav"
             
             with wave.open(str(output_file), 'wb') as wav_file:
                 wav_file.setnchannels(1)      # 单声道
@@ -310,14 +308,14 @@ class RealMultithreadTestSuite:
             logger.warning("没有成功的测试结果")
             return
         
-        # 实例隔离性验证
-        instance_ids = [result.instance_id for result in results.values()]
-        unique_instances = set(instance_ids)
+        # 处理器隔离性验证
+        processor_ids = [result.processor_id for result in results.values()]
+        unique_processors = set(processor_ids)
         
         logger.info(f"🔍 线程隔离性检查:")
         logger.info(f"   - 线程数量: {len(results)}")
-        logger.info(f"   - 实例ID数量: {len(unique_instances)}")
-        logger.info(f"   - 实例隔离: {'✅ 成功' if len(unique_instances) == len(results) else '❌ 失败'}")
+        logger.info(f"   - 处理器ID数量: {len(unique_processors)}")
+        logger.info(f"   - 处理器隔离: {'✅ 成功' if len(unique_processors) == len(results) else '❌ 失败'}")
         
         # 显示各线程详细结果
         logger.info(f"\n📈 各线程处理结果:")
@@ -329,7 +327,7 @@ class RealMultithreadTestSuite:
         
         for thread_id, result in results.items():
             logger.info(f"   线程 {thread_id} ({result.thread_name}):")
-            logger.info(f"     - 实例ID: {result.instance_id}")
+            logger.info(f"     - 处理器ID: {result.processor_id}")
             logger.info(f"     - 语音段: {result.speech_segments_count}")
             logger.info(f"     - 单帧: {result.single_frames_count}")
             logger.info(f"     - 模型加载时间: {result.model_load_time_ms:.1f}ms")
@@ -377,12 +375,23 @@ async def main():
     print("🧵 Cascade 真正的多线程多实例测试")
     print("=" * 50)
     
-    # 音频文件路径
-    audio_file = "/home/justin/workspace/cascade/我现在开始录音，理论上会有两个文件.wav"
+    # 测试文件列表
+    test_files = [
+        "我现在开始录音，理论上会有两个文件.wav"
+    ]
     
-    # 检查文件是否存在
-    if not os.path.exists(audio_file):
-        print(f"❌ 音频文件不存在: {audio_file}")
+    # 寻找可用的音频文件
+    audio_file = None
+    for file_path in test_files:
+        if os.path.exists(file_path):
+            audio_file = file_path
+            break
+    
+    if not audio_file:
+        print("❌ 未找到可用的音频文件")
+        print("请将音频文件放在项目根目录，支持的文件名:")
+        for file_path in test_files:
+            print(f"  - {file_path}")
         return
     
     # 测试配置

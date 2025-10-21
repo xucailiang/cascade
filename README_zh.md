@@ -12,17 +12,33 @@ Cascade是一个专为语音活动检测(VAD)设计的**生产级**、**高性�
 
 ## 📊 性能指标
 
-基于最新测试结果的性能指标：
+基于最新流式VAD性能测试的不同块大小测试结果：
+
+### 不同块大小的流式处理性能
+
+| 块大小(字节) | 处理时间(ms) | 吞吐量(块/秒) | 总测试时间(s) | 语音段数 |
+|-------------|-------------|-------------|-------------|---------|
+| **1024**   | **0.66**   | **92.2**   | 3.15        | 2       |
+| **4096**   | 1.66        | 82.4        | 0.89        | 2       |
+| **8192**   | 2.95        | 72.7        | 0.51        | 2       |
+
+### 核心性能指标
 
 | 指标 | 数值 | 说明 |
 |------|------|------|
-| **处理速度** | 2430.3 fps | 平均每秒处理帧数 |
-| **延迟** | 29.04ms | 平均处理延迟 |
-| **内存使用** | 471.1MB | 平均内存占用 |
-| **成功率** | 100% | 处理成功率 |
+| **最佳处理速度** | 0.66ms/块 | 1024字节块大小下的最优性能 |
+| **峰值吞吐量** | 92.2块/秒 | 最大处理吞吐量 |
+| **成功率** | 100% | 所有测试的处理成功率 |
 | **准确性** | 高 | 基于Silero VAD，保证检测准确性 |
+| **架构** | 1:1:1:1 | 每个处理器实例独立模型 |
 
-详细的性能测试报告请参见：[性能测试报告](performance_tests/performance_test_report.md)。
+### 性能建议
+
+- **推荐块大小**: 1024字节，兼顾速度和吞吐量的最佳平衡
+- **实时处理能力**: 亚毫秒级处理时间支持实时应用
+- **可扩展性**: 独立处理器实例实现线性性能扩展
+
+详细测试结果请参见：[架构重构完成报告](docs/architecture_refactoring_completion_report.md)。
 
 ## ✨ 核心特性
 
@@ -52,26 +68,23 @@ Cascade是一个专为语音活动检测(VAD)设计的**生产级**、**高性�
 
 ## 🏗️ 架构设计
 
-Cascade采用**1:1:1绑定架构**，确保最佳性能和资源利用：
+Cascade采用**1:1:1:1独立架构**，确保最佳性能和线程安全：
 
 ```mermaid
 graph TD
     Client[客户端] --> StreamProcessor[流式处理器]
     
-    subgraph "处理实例池"
-        StreamProcessor --> Instance1[Cascade实例1]
-        StreamProcessor --> Instance2[Cascade实例2]
-        StreamProcessor --> InstanceN[Cascade实例N]
+    subgraph "1:1:1:1独立架构"
+        StreamProcessor --> |每个连接| IndependentProcessor[独立处理器实例]
+        IndependentProcessor --> |独立加载| VADModel[Silero VAD模型]
+        IndependentProcessor --> |独立管理| VADIterator[VAD迭代器]
+        IndependentProcessor --> |独立缓冲| FrameBuffer[帧对齐缓冲区]
+        IndependentProcessor --> |独立状态| StateMachine[状态机]
     end
     
-    subgraph "1:1:1绑定架构"
-        Instance1 --> Thread1[专用线程1]
-        Thread1 --> Buffer1[帧对齐缓冲区1]
-        Thread1 --> VAD1[Silero VAD1]
-    end
-    
-    subgraph "VAD状态机"
-        VAD1 --> StateMachine[状态机]
+    subgraph "异步处理流程"
+        VADModel --> |asyncio.to_thread| VADInference[VAD推理]
+        VADInference --> StateMachine
         StateMachine --> |None| SingleFrame[单帧输出]
         StateMachine --> |start| Collecting[开始收集]
         StateMachine --> |end| SpeechSegment[语音段输出]
@@ -116,18 +129,19 @@ sequenceDiagram
 
 ## 🔍 性能优化策略
 
-### 1. 无锁设计 (1:1:1架构)
+### 1. 独立架构设计 (1:1:1:1架构)
 
-每个Cascade实例拥有专属的线程、缓冲区和VAD模型，完全避免了锁竞争：
+每个StreamProcessor实例加载自己独立的VAD模型，完全消除线程安全问题和锁竞争：
 
 ```python
-# 无锁设计示例
-class CascadeInstance:
-    def __init__(self):
-        # 1:1:1绑定：一个实例一个缓冲区、一个线程、一个VAD
-        self.frame_buffer = FrameAlignedBuffer()  # 专属缓冲区
-        self.vad_iterator = VADIterator(model)    # 专属VAD模型
-        self.speech_collector = SpeechCollector() # 专属收集器
+# 独立架构设计示例
+class StreamProcessor:
+    async def initialize(self):
+        # 1:1:1:1独立：一个处理器、一个模型、一个迭代器、一个缓冲区、一个状态机
+        self.vad_model = await asyncio.to_thread(self._load_vad_model)  # 独立模型
+        self.vad_iterator = VADIterator(self.vad_model)                 # 独立迭代器
+        self.frame_buffer = FrameAlignedBuffer()                       # 独立缓冲区
+        self.state_machine = VADStateMachine()                         # 独立状态机
 ```
 
 ### 2. 帧对齐缓冲区
@@ -261,9 +275,37 @@ python tests/benchmark_performance.py
 - ✅ 文件处理功能
 - ✅ 真实音频VAD检测
 - ✅ 语音段自动保存
-- ✅ 1:1:1架构验证
+- ✅ 1:1:1:1架构验证
 - ✅ 性能基准测试
 - ✅ FrameAlignedBuffer测试
+
+## 🌐 Web演示
+
+我们提供了一个完整的基于WebSocket的Web演示应用，展示Cascade的实时VAD能力和多客户端支持。
+
+![Web演示截图](web_demo/test_image.png)
+
+### 功能特性
+
+- **实时音频处理**：通过浏览器麦克风捕获音频并进行VAD处理
+- **实时VAD可视化**：实时显示VAD检测结果
+- **语音段管理**：显示检测到的语音段并支持回放
+- **动态VAD配置**：实时调整VAD参数
+- **多客户端支持**：每个WebSocket连接获得独立的Cascade实例
+
+### 快速启动
+
+```bash
+# 启动后端服务器
+cd web_demo
+python server.py
+
+# 启动前端应用（另开终端）
+cd web_demo/frontend
+pnpm install && pnpm dev
+```
+
+详细的安装和配置说明请参见：[Web演示文档](web_demo/README.md)。
 
 ## 🔧 生产环境部署
 

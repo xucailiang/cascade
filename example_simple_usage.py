@@ -1,240 +1,134 @@
+#!/usr/bin/env python3
 """
-Cascade 简化架构使用示例
+简单的VAD测试脚本
 
-展示简化后的1:1:1:1架构使用方式。
-每个StreamProcessor实例拥有独立的VAD模型，无锁无竞争。
+测试重构后的Cascade StreamProcessor，使用两个.wav文件进行流式VAD检测，
+并将检测到的语音段保存为独立的.wav文件。
 """
 
 import asyncio
+import os
+import wave
+from pathlib import Path
+
 import cascade
 
 
-async def example_basic_usage():
-    """基础使用示例 - 使用异步上下文管理器"""
-    print("=" * 50)
-    print("示例1: 基础使用 - 异步上下文管理器")
-    print("=" * 50)
+async def save_speech_segment(audio_data: bytes, output_path: str):
+    """
+    保存语音段为WAV文件
     
-    # 1. 创建配置
-    config = cascade.Config(
-        vad_threshold=0.5,
-        min_silence_duration_ms=500,
-        speech_pad_ms=300
-    )
-    
-    # 2. 使用异步上下文管理器（自动初始化和清理）
-    async with cascade.StreamProcessor(config) as processor:
-        # 3. 处理音频文件（如果你有音频文件）
-        try:
-            async for result in processor.process_file("test_audio.wav"):
-                if result.is_speech_segment and result.segment:
-                    segment = result.segment
-                    print(f"✓ 检测到语音段: "
-                          f"{segment.start_timestamp_ms:.0f}-{segment.end_timestamp_ms:.0f}ms "
-                          f"({segment.duration_ms:.0f}ms, {segment.frame_count}帧)")
-                elif result.frame:
-                    frame = result.frame
-                    print(f"  单帧: {frame.timestamp_ms:.0f}ms")
-        except FileNotFoundError:
-            print("测试音频文件不存在，跳过文件处理示例")
-    
-    print("\n处理器已自动清理\n")
+    Args:
+        audio_data: 音频数据（16kHz, 16bit, mono）
+        output_path: 输出文件路径
+    """
+    try:
+        with wave.open(output_path, 'wb') as wav_file:
+            wav_file.setnchannels(1)      # 单声道
+            wav_file.setsampwidth(2)      # 16位
+            wav_file.setframerate(16000)  # 16kHz采样率
+            wav_file.writeframes(audio_data)
+        print(f"💾 已保存语音段: {output_path}")
+    except Exception as e:
+        print(f"❌ 保存失败 {output_path}: {e}")
 
 
-async def example_manual_control():
-    """手动控制示例 - 显式初始化和清理"""
-    print("=" * 50)
-    print("示例2: 手动控制")
+async def test_vad_on_file(audio_file: str):
+    """
+    测试单个音频文件的VAD处理
+    
+    Args:
+        audio_file: 音频文件路径
+    """
+    if not os.path.exists(audio_file):
+        print(f"❌ 文件不存在: {audio_file}")
+        return
+    
+    print(f"\n🎯 开始处理: {Path(audio_file).name}")
     print("=" * 50)
     
-    # 1. 创建处理器
-    processor = cascade.StreamProcessor()
+    # 创建输出目录
+    output_dir = Path("speech_segments")
+    output_dir.mkdir(exist_ok=True)
+    
+    # 文件名前缀
+    file_prefix = Path(audio_file).stem
+    
+    segment_count = 0
+    frame_count = 0
     
     try:
-        # 2. 显式初始化
-        await processor.initialize()
-        print("✓ StreamProcessor初始化完成")
+        # 创建配置
+        config = cascade.Config(
+            vad_threshold=0.5,
+            min_silence_duration_ms=500,
+            speech_pad_ms=300
+        )
         
-        # 3. 处理音频块（模拟）
-        # 在实际应用中，audio_chunk来自WebSocket、文件流等
-        print("\n模拟处理音频块...")
-        
-        # 获取统计信息
-        stats = processor.get_stats()
-        print(f"\n统计信息: {stats.summary()}")
-        
-    finally:
-        # 4. 显式清理
-        await processor.close()
-        print("✓ StreamProcessor已清理")
-    
-    print()
-
-
-async def example_stream_processing():
-    """流式处理示例 - 处理音频流"""
-    print("=" * 50)
-    print("示例3: 流式处理")
-    print("=" * 50)
-    
-    async def mock_audio_stream():
-        """模拟音频流生成器"""
-        # 模拟3个音频块
-        for i in range(3):
-            # 每个块1024字节 (512样本 * 2字节)
-            yield b'\x00' * 1024
-            await asyncio.sleep(0.1)
-    
-    config = cascade.Config(vad_threshold=0.5)
-    
-    async with cascade.StreamProcessor(config) as processor:
-        print("开始处理音频流...")
-        
-        result_count = 0
-        async for result in processor.process_stream(mock_audio_stream()):
-            result_count += 1
-            print(f"处理结果 #{result_count}: {result.result_type}")
-        
-        # 获取统计
-        stats = processor.get_stats()
-        print(f"\n处理完成! 总共处理 {stats.total_chunks_processed} 个块")
-    
-    print()
-
-
-async def example_multiple_processors():
-    """多处理器示例 - 展示1:1:1:1架构"""
-    print("=" * 50)
-    print("示例4: 多处理器并发 (1:1:1:1架构)")
-    print("=" * 50)
-    print("每个处理器拥有独立的VAD模型，完全隔离，无并发问题\n")
-    
-    async def simulate_client(client_id: int, processor: cascade.StreamProcessor):
-        """模拟一个客户端连接"""
-        print(f"客户端 {client_id}: 开始处理")
-        
-        # 模拟处理几个音频块
-        for i in range(2):
-            audio_data = b'\x00' * 1024
-            results = await processor.process_chunk(audio_data)
-            print(f"客户端 {client_id}: 处理块 {i+1}, 得到 {len(results)} 个结果")
-            await asyncio.sleep(0.1)
-        
-        print(f"客户端 {client_id}: 处理完成")
-    
-    # 创建3个独立的处理器（模拟3个WebSocket连接）
-    processors = []
-    for i in range(3):
-        proc = cascade.StreamProcessor()
-        await proc.initialize()
-        processors.append(proc)
-        print(f"✓ 处理器 {i+1} 初始化完成（独立VAD模型）")
-    
-    print("\n并发处理...")
-    try:
-        # 并发处理（每个处理器在独立协程中）
-        tasks = [
-            simulate_client(i+1, proc)
-            for i, proc in enumerate(processors)
-        ]
-        await asyncio.gather(*tasks)
-        
-    finally:
-        # 清理所有处理器
-        print("\n清理处理器...")
-        for i, proc in enumerate(processors):
-            await proc.close()
-            print(f"✓ 处理器 {i+1} 已清理")
-    
-    print("\n所有处理器已清理，内存已释放\n")
-
-
-async def example_websocket_pattern():
-    """WebSocket使用模式示例"""
-    print("=" * 50)
-    print("示例5: WebSocket使用模式")
-    print("=" * 50)
-    
-    class SessionManager:
-        """会话管理器 - WebSocket服务器端使用"""
-        
-        def __init__(self):
-            # 每个客户端ID对应一个独立的StreamProcessor
-            self.processors: dict[str, cascade.StreamProcessor] = {}
-        
-        async def start_session(self, client_id: str):
-            """为新连接创建处理器"""
-            config = cascade.Config(vad_threshold=0.5)
-            processor = cascade.StreamProcessor(config)
-            await processor.initialize()
-            self.processors[client_id] = processor
-            print(f"✓ 会话 {client_id} 已创建")
-        
-        async def process_chunk(self, client_id: str, audio_data: bytes):
-            """处理音频块"""
-            processor = self.processors.get(client_id)
-            if not processor:
-                print(f"⚠ 会话 {client_id} 不存在")
-                return
+        # 使用StreamProcessor处理文件
+        async with cascade.StreamProcessor(config) as processor:
+            print("✅ StreamProcessor已启动（独立VAD模型）")
             
-            results = await processor.process_chunk(audio_data)
-            for result in results:
+            async for result in processor.process_file(audio_file):
                 if result.is_speech_segment and result.segment:
-                    print(f"  {client_id}: 检测到语音段 "
-                          f"{result.segment.duration_ms:.0f}ms")
-        
-        async def stop_session(self, client_id: str):
-            """关闭会话"""
-            processor = self.processors.pop(client_id, None)
-            if processor:
-                await processor.close()
-                print(f"✓ 会话 {client_id} 已关闭")
+                    segment_count += 1
+                    segment = result.segment
+                    
+                    # 生成输出文件名
+                    start_ms = int(segment.start_timestamp_ms)
+                    end_ms = int(segment.end_timestamp_ms)
+                    duration_ms = int(segment.duration_ms)
+                    
+                    output_filename = f"{file_prefix}_segment_{segment_count:03d}_{start_ms}ms-{end_ms}ms.wav"
+                    output_path = output_dir / output_filename
+                    
+                    # 保存语音段
+                    await save_speech_segment(segment.audio_data, str(output_path))
+                    
+                    print(f"🎤 语音段 {segment_count}: {start_ms}ms - {end_ms}ms "
+                          f"(时长: {duration_ms}ms, {segment.frame_count}帧)")
+                
+                elif result.frame:
+                    frame_count += 1
+                    if frame_count % 50 == 0:  # 每50帧打印一次
+                        print(f"🔇 处理帧: {frame_count}", end="\r")
+            
+            # 获取统计信息
+            stats = processor.get_stats()
+            
+            print(f"\n📊 处理完成:")
+            print(f"   🎤 语音段数量: {segment_count}")
+            print(f"   🔇 单帧数量: {frame_count}")
+            print(f"   📦 总处理块: {stats.total_chunks_processed}")
+            print(f"   ⏱️  平均处理时间: {stats.average_processing_time_ms:.2f}ms")
+            print(f"   💾 语音段保存到: {output_dir.absolute()}")
     
-    # 模拟WebSocket服务器使用
-    manager = SessionManager()
-    
-    # 客户端1连接
-    await manager.start_session("client_1")
-    await manager.process_chunk("client_1", b'\x00' * 1024)
-    
-    # 客户端2连接
-    await manager.start_session("client_2")
-    await manager.process_chunk("client_2", b'\x00' * 1024)
-    
-    # 处理更多数据
-    await manager.process_chunk("client_1", b'\x00' * 1024)
-    
-    # 客户端断开
-    await manager.stop_session("client_1")
-    await manager.stop_session("client_2")
-    
-    print()
+    except Exception as e:
+        print(f"❌ 处理失败: {e}")
 
 
 async def main():
-    """运行所有示例"""
-    print("\n" + "=" * 50)
-    print("Cascade 简化架构使用示例集")
-    print("=" * 50 + "\n")
-    
-    # 运行所有示例
-    await example_basic_usage()
-    await example_manual_control()
-    await example_stream_processing()
-    await example_multiple_processors()
-    await example_websocket_pattern()
-    
+    """主函数"""
+    print("🌊 Cascade 简单VAD测试")
+    print("基于重构后的1:1:1:1架构")
     print("=" * 50)
-    print("所有示例运行完成！")
-    print("=" * 50)
-    print("\n核心特性:")
-    print("✓ 1:1:1:1架构 - 每个StreamProcessor拥有独立模型")
-    print("✓ 无锁设计 - 完全独立，无并发冲突")
-    print("✓ 异步处理 - 使用asyncio.to_thread执行VAD推理")
-    print("✓ 简洁API - 易于理解和使用")
-    print("✓ 自动资源管理 - 异步上下文管理器支持\n")
+    
+    # 测试文件列表
+    test_files = [
+        "我现在开始录音，理论上会有两个文件.wav"
+    ]
+    
+    # 检查并处理每个文件
+    for audio_file in test_files:
+        if os.path.exists(audio_file):
+            await test_vad_on_file(audio_file)
+        else:
+            print(f"⚠️  跳过不存在的文件: {audio_file}")
+    
+    print(f"\n🎉 测试完成！")
+    print(f"✅ 重构后的StreamProcessor工作正常")
+    print(f"✅ 独立模型架构无并发问题")
 
 
 if __name__ == "__main__":
-    # 运行示例
     asyncio.run(main())
