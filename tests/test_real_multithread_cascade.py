@@ -386,7 +386,7 @@ async def main():
         return
     
     # 测试配置
-    num_threads = 4  # 使用4个线程测试
+    num_threads = 18  # 使用4个线程测试
     chunk_size = 4096  # 4KB块大小
     
     # 创建测试套件
