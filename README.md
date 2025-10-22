@@ -39,7 +39,6 @@ Based on our latest streaming VAD performance tests with different chunk sizes:
 - **Real-time capability**: Sub-millisecond processing enables real-time applications
 - **Scalability**: Linear performance scaling with independent processor instances
 
-For detailed test results, see the [Architecture Refactoring Report](docs/architecture_refactoring_completion_report.md).
 
 ## ✨ Core Features
 
