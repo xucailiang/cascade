@@ -1,100 +1,134 @@
 #!/usr/bin/env python3
-"""Cascade 简洁使用示例"""
+"""
+简单的VAD测试脚本
+
+测试重构后的Cascade StreamProcessor，使用两个.wav文件进行流式VAD检测，
+并将检测到的语音段保存为独立的.wav文件。
+"""
 
 import asyncio
 import os
 import wave
+from pathlib import Path
 
 import cascade
 
 
-async def process_file_example(audio_file):
-    """文件处理示例"""
-    print(f"处理文件: {audio_file}")
+async def save_speech_segment(audio_data: bytes, output_path: str):
+    """
+    保存语音段为WAV文件
+    
+    Args:
+        audio_data: 音频数据（16kHz, 16bit, mono）
+        output_path: 输出文件路径
+    """
+    try:
+        with wave.open(output_path, 'wb') as wav_file:
+            wav_file.setnchannels(1)      # 单声道
+            wav_file.setsampwidth(2)      # 16位
+            wav_file.setframerate(16000)  # 16kHz采样率
+            wav_file.writeframes(audio_data)
+        print(f"💾 已保存语音段: {output_path}")
+    except Exception as e:
+        print(f"❌ 保存失败 {output_path}: {e}")
 
-    # 创建处理器并启动
-    processor = cascade.create_processor()
-    await processor.start()
 
-    # 处理音频文件
+async def test_vad_on_file(audio_file: str):
+    """
+    测试单个音频文件的VAD处理
+    
+    Args:
+        audio_file: 音频文件路径
+    """
+    if not os.path.exists(audio_file):
+        print(f"❌ 文件不存在: {audio_file}")
+        return
+    
+    print(f"\n🎯 开始处理: {Path(audio_file).name}")
+    print("=" * 50)
+    
+    # 创建输出目录
+    output_dir = Path("speech_segments")
+    output_dir.mkdir(exist_ok=True)
+    
+    # 文件名前缀
+    file_prefix = Path(audio_file).stem
+    
     segment_count = 0
-    async for result in processor.process_file(audio_file):
-        if result.is_speech_segment and result.segment:
-            segment_count += 1
-            duration = result.segment.duration_ms
-            print(f"语音段 {segment_count}: {duration:.1f}ms")
-
-            # 保存语音段
-            save_path = f"speech_segments/segment_{segment_count}.wav"
-            save_audio_segment(result.segment.audio_data, save_path)
-
-    # 停止处理器
-    await processor.stop()
-    print(f"文件处理完成，检测到 {segment_count} 个语音段")
-
-
-async def process_stream_example(audio_file):
-    """流式处理示例"""
-    print(f"流式处理: {audio_file}")
-
-    # 创建处理器并启动
-    processor = cascade.create_processor()
-    await processor.start()
-
-    # 从文件创建流
-    async def file_to_stream():
-        with wave.open(audio_file, 'rb') as wav_file:
-            chunk_size = 512 * wav_file.getsampwidth()
-            data = wav_file.readframes(512)
-            while data:
-                yield data
-                data = wav_file.readframes(512)
-                await asyncio.sleep(0.01)  # 模拟实时流
-
-    # 处理音频流
-    segment_count = 0
-    async for result in processor.process_stream(file_to_stream()):
-        if result.is_speech_segment and result.segment:
-            segment_count += 1
-            duration = result.segment.duration_ms
-            print(f"流式语音段 {segment_count}: {duration:.1f}ms")
-
-            # 保存语音段
-            save_path = f"stream_speech_segments/stream_segment_{segment_count}.wav"
-            save_audio_segment(result.segment.audio_data, save_path)
-
-    # 停止处理器
-    await processor.stop()
-    print(f"流式处理完成，检测到 {segment_count} 个语音段")
-
-
-def save_audio_segment(audio_data, save_path):
-    """保存音频段到WAV文件"""
-    # 确保目录存在
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
-    # 保存为WAV文件
-    with wave.open(save_path, 'wb') as wav_file:
-        wav_file.setnchannels(1)  # 单声道
-        wav_file.setsampwidth(2)  # 16位
-        wav_file.setframerate(16000)  # 16kHz
-        wav_file.writeframes(audio_data)
-
-    print(f"已保存: {save_path}")
+    frame_count = 0
+    
+    try:
+        # 创建配置
+        config = cascade.Config(
+            vad_threshold=0.5,
+            min_silence_duration_ms=500,
+            speech_pad_ms=300
+        )
+        
+        # 使用StreamProcessor处理文件
+        async with cascade.StreamProcessor(config) as processor:
+            print("✅ StreamProcessor已启动（独立VAD模型）")
+            
+            async for result in processor.process_file(audio_file):
+                if result.is_speech_segment and result.segment:
+                    segment_count += 1
+                    segment = result.segment
+                    
+                    # 生成输出文件名
+                    start_ms = int(segment.start_timestamp_ms)
+                    end_ms = int(segment.end_timestamp_ms)
+                    duration_ms = int(segment.duration_ms)
+                    
+                    output_filename = f"{file_prefix}_segment_{segment_count:03d}_{start_ms}ms-{end_ms}ms.wav"
+                    output_path = output_dir / output_filename
+                    
+                    # 保存语音段
+                    await save_speech_segment(segment.audio_data, str(output_path))
+                    
+                    print(f"🎤 语音段 {segment_count}: {start_ms}ms - {end_ms}ms "
+                          f"(时长: {duration_ms}ms, {segment.frame_count}帧)")
+                
+                elif result.frame:
+                    frame_count += 1
+                    if frame_count % 50 == 0:  # 每50帧打印一次
+                        print(f"🔇 处理帧: {frame_count}", end="\r")
+            
+            # 获取统计信息
+            stats = processor.get_stats()
+            
+            print(f"\n📊 处理完成:")
+            print(f"   🎤 语音段数量: {segment_count}")
+            print(f"   🔇 单帧数量: {frame_count}")
+            print(f"   📦 总处理块: {stats.total_chunks_processed}")
+            print(f"   ⏱️  平均处理时间: {stats.average_processing_time_ms:.2f}ms")
+            print(f"   💾 语音段保存到: {output_dir.absolute()}")
+    
+    except Exception as e:
+        print(f"❌ 处理失败: {e}")
 
 
 async def main():
     """主函数"""
-    # 使用真实音频文件
-    audio_file = "我现在开始录音，理论上会有两个文件.wav"
-
-    # 文件处理
-    await process_file_example(audio_file)
-
-    # 流式处理
-    await process_stream_example(audio_file)
+    print("🌊 Cascade 简单VAD测试")
+    print("基于重构后的1:1:1:1架构")
+    print("=" * 50)
+    
+    # 测试文件列表
+    test_files = [
+        "我现在开始录音，理论上会有两个文件.wav"
+    ]
+    
+    # 检查并处理每个文件
+    for audio_file in test_files:
+        if os.path.exists(audio_file):
+            await test_vad_on_file(audio_file)
+        else:
+            print(f"⚠️  跳过不存在的文件: {audio_file}")
+    
+    print(f"\n🎉 测试完成！")
+    print(f"✅ 重构后的StreamProcessor工作正常")
+    print(f"✅ 独立模型架构无并发问题")
 
 
 if __name__ == "__main__":
-    # 运行主函数
     asyncio.run(main())

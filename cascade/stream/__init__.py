@@ -5,7 +5,6 @@ Cascade 流式处理器模块
 
 主要组件：
 - StreamProcessor: 核心流式处理器
-- CascadeInstance: 单个处理实例
 - VADStateMachine: VAD状态机
 - SpeechCollector: 语音帧收集器
 
@@ -29,7 +28,6 @@ Cascade 流式处理器模块
 """
 
 from .collector import SpeechCollector
-from .instance import CascadeInstance
 from .processor import StreamProcessor
 from .state_machine import VADState, VADStateMachine
 from .types import (
@@ -67,7 +65,7 @@ async def process_audio_stream(
         config = Config()
 
     async with StreamProcessor(config) as processor:
-        async for result in processor.process_stream(audio_stream, stream_id):
+        async for result in processor.process_stream(audio_stream):
             yield result
 
 
@@ -140,7 +138,6 @@ __all__ = [
     "SpeechCollector",
     "VADStateMachine",
     "VADState",
-    "CascadeInstance",
     "StreamProcessor",
 
     # 便捷函数

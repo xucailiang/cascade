@@ -54,14 +54,15 @@ from .stream import (
     Config,
     ProcessorStats,
     SpeechSegment,
-    # 核心处理器
-    StreamProcessor,
+    # 便捷函数
     create_default_config,
     create_stream_processor,
     process_audio_chunk,
-    # 便捷函数
     process_audio_stream,
 )
+
+# 确保StreamProcessor可以从cascade模块直接导入
+from .stream.processor import StreamProcessor as StreamProcessor
 from .types import (
     # 数据类型
     AudioChunk,

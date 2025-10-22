@@ -13,17 +13,33 @@
 
 ## 📊 Performance Benchmarks
 
-Based on our latest performance tests:
+Based on our latest streaming VAD performance tests with different chunk sizes:
+
+### Streaming Performance by Chunk Size
+
+| Chunk Size (bytes) | Processing Time (ms) | Throughput (chunks/sec) | Total Test Time (s) | Speech Segments |
+|-------------------|---------------------|------------------------|-------------------|-----------------|
+| **1024**          | **0.66**            | **92.2**               | 3.15              | 2               |
+| **4096**          | 1.66                | 82.4                   | 0.89              | 2               |
+| **8192**          | 2.95                | 72.7                   | 0.51              | 2               |
+
+### Key Performance Metrics
 
 | Metric                  | Value         | Description                             |
 |-------------------------|---------------|-----------------------------------------|
-| **Processing Speed**    | 2430.3 fps    | Average frames processed per second     |
-| **Latency**             | 29.04ms       | Average processing latency              |
-| **Memory Usage**        | 471.1MB       | Average memory footprint                |
-| **Success Rate**        | 100%          | Processing success rate                 |
+| **Best Processing Speed** | 0.66ms/chunk | Optimal performance with 1024-byte chunks |
+| **Peak Throughput**     | 92.2 chunks/sec | Maximum processing throughput          |
+| **Success Rate**        | 100%          | Processing success rate across all tests |
 | **Accuracy**            | High          | Guaranteed by the Silero VAD model      |
+| **Architecture**        | 1:1:1:1       | Independent model per processor instance |
 
-For a detailed analysis, please see the [Performance Test Report](performance_tests/performance_test_report.md).
+### Performance Characteristics
+
+- **Excellent performance across chunk sizes**: High throughput and low latency with various chunk sizes
+- **Real-time capability**: Sub-millisecond processing enables real-time applications
+- **Scalability**: Linear performance scaling with independent processor instances
+
+For detailed test results, see the [Architecture Refactoring Report](docs/architecture_refactoring_completion_report.md).
 
 ## ✨ Core Features
 
@@ -53,113 +69,27 @@ For a detailed analysis, please see the [Performance Test Report](performance_te
 
 ## 🏗️ Architecture
 
-Cascade employs a **1:1:1 binding architecture** to ensure optimal performance and resource utilization.
+Cascade employs a **1:1:1:1 independent architecture** to ensure optimal performance and thread safety.
 
 ```mermaid
 graph TD
     Client --> StreamProcessor
     
-    subgraph "Instance Pool"
-        StreamProcessor --> Instance1[Cascade Instance 1]
-        StreamProcessor --> Instance2[Cascade Instance 2]
-        StreamProcessor --> InstanceN[Cascade Instance N]
+    subgraph "1:1:1:1 Independent Architecture"
+        StreamProcessor --> |per connection| IndependentProcessor[Independent Processor Instance]
+        IndependentProcessor --> |independent loading| VADModel[Silero VAD Model]
+        IndependentProcessor --> |independent management| VADIterator[VAD Iterator]
+        IndependentProcessor --> |independent buffering| FrameBuffer[Frame-Aligned Buffer]
+        IndependentProcessor --> |independent state| StateMachine[State Machine]
     end
     
-    subgraph "1:1:1 Binding Architecture"
-        Instance1 --> Thread1[Dedicated Thread 1]
-        Thread1 --> Buffer1[Frame-Aligned Buffer 1]
-        Thread1 --> VAD1[Silero VAD 1]
-    end
-    
-    subgraph "VAD State Machine"
-        VAD1 --> StateMachine
+    subgraph "Asynchronous Processing Flow"
+        VADModel --> |asyncio.to_thread| VADInference[VAD Inference]
+        VADInference --> StateMachine
         StateMachine --> |None| SingleFrame[Single Frame Output]
         StateMachine --> |start| Collecting[Start Collecting]
         StateMachine --> |end| SpeechSegment[Speech Segment Output]
     end
-```
-
-### Core Component Interaction Flow
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Processor as StreamProcessor
-    participant Instance as CascadeInstance
-    participant Buffer as FrameAlignedBuffer
-    participant VAD as SileroVAD
-    participant Collector as SpeechCollector
-    
-    Client->>Processor: Send audio data
-    Processor->>Instance: Allocate instance for processing
-    Instance->>Buffer: Write audio data
-    
-    loop Frame Processing
-        Buffer->>Buffer: Check for complete frame
-        Buffer->>VAD: Read 512-sample frame
-        VAD->>VAD: Perform VAD
-        
-        alt Voice Start Detected
-            VAD->>Collector: Start collecting
-            Collector->>Collector: Store frames
-        else Voice End Detected
-            VAD->>Collector: End collecting
-            Collector->>Instance: Return speech segment
-            Instance->>Processor: Output speech segment
-            Processor->>Client: Return result
-        else Non-speech Frame
-            VAD->>Instance: Return single frame
-            Instance->>Processor: Output single frame
-            Processor->>Client: Return result
-        end
-    end
-```
-
-## 🔍 Performance Optimization Strategies
-
-### 1. Lock-Free Design (1:1:1 Architecture)
-
-Each Cascade instance has its own dedicated thread, buffer, and VAD model, completely avoiding lock contention.
-
-```python
-# Example of lock-free design
-class CascadeInstance:
-    def __init__(self):
-        # 1:1:1 Binding: One instance, one buffer, one thread, one VAD
-        self.frame_buffer = FrameAlignedBuffer()  # Dedicated buffer
-        self.vad_iterator = VADIterator(model)    # Dedicated VAD model
-        self.speech_collector = SpeechCollector() # Dedicated collector
-```
-
-### 2. Frame-Aligned Buffer
-
-An efficient buffer optimized for 512-sample frames, avoiding complex overlap handling.
-
-```python
-# Example of frame-aligned buffer
-def read_frame(self) -> Optional[bytes]:
-    """Reads a complete 512-sample frame."""
-    if not self.has_complete_frame():
-        return None
-    
-    # Extract the 512-sample frame
-    frame_data = bytes(self._buffer[:self._frame_size_bytes])
-    
-    # Remove the read data from the buffer
-    self._buffer = self._buffer[self._frame_size_bytes:]
-    
-    return frame_data
-```
-
-### 3. Memory Optimization
-
-Uses `bytearray` and zero-copy design to reduce memory allocation and data copying.
-
-```python
-# Example of memory optimization
-def write(self, audio_data: bytes) -> None:
-    """Writes audio data to the buffer."""
-    self._buffer.extend(audio_data)  # Extend buffer directly to avoid copying
 ```
 
 ## 🚀 Quick Start
@@ -261,9 +191,37 @@ Test Coverage:
 - ✅ File Processing
 - ✅ Real Audio VAD
 - ✅ Automatic Speech Segment Saving
-- ✅ 1:1:1 Architecture Validation
+- ✅ 1:1:1:1 Architecture Validation
 - ✅ Performance Benchmarks
 - ✅ FrameAlignedBuffer Tests
+
+## 🌐 Web Demo
+
+We provide a complete WebSocket-based web demonstration that showcases Cascade's real-time VAD capabilities with multiple client support.
+
+![Web Demo Screenshot](web_demo/test_image.png)
+
+### Features
+
+- **Real-time Audio Processing**: Capture audio from browser microphone and process with VAD
+- **Live VAD Visualization**: Real-time display of VAD detection results
+- **Speech Segment Management**: Display detected speech segments with playback support
+- **Dynamic VAD Configuration**: Adjust VAD parameters in real-time
+- **Multi-client Support**: Independent Cascade instances for each WebSocket connection
+
+### Quick Start
+
+```bash
+# Start backend server
+cd web_demo
+python server.py
+
+# Start frontend (in another terminal)
+cd web_demo/frontend
+pnpm install && pnpm dev
+```
+
+For detailed setup instructions, see [Web Demo Documentation](web_demo/README.md).
 
 ## 🔧 Production Deployment
 
@@ -327,31 +285,6 @@ We welcome community contributions! Please follow these steps:
 4.  **Lint your code**: `ruff check . && black --check .`
 5.  **Type check**: `mypy cascade`
 6.  **Submit a Pull Request** with a clear description of your changes.
-
-### Development Setup
-
-```bash
-# Clone the project
-git clone https://github.com/xucailiang/cascade.git
-cd cascade
-
-# Create a virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# or venv\Scripts\activate  # Windows
-
-# Install development dependencies
-pip install -e .
-
-# Install pre-commit hooks
-pre-commit install
-
-# Run tests
-python -m pytest tests/ -v
-
-# Run performance tests
-python tests/benchmark_performance.py
-```
 
 ## 📄 License
 
