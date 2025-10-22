@@ -121,11 +121,7 @@ class AudioFormatProcessor:
             config: 音频配置对象
         """
         self.config = config
-
-        # 初始化缓存
-        self._chunk_size_cache: dict[tuple[int, int], int] = {}
-        self._conversion_cache: dict[str, np.ndarray] = {}
-
+        
         # 确保PCMA解码表已构建
         _build_pcma_decode_table()
 
@@ -253,45 +249,6 @@ class AudioFormatProcessor:
                 }
             )
 
-    def calculate_chunk_size(self, duration_ms: int, sample_rate: int) -> int:
-        """
-        计算指定时长的块大小
-        
-        Args:
-            duration_ms: 时长（毫秒）
-            sample_rate: 采样率
-            
-        Returns:
-            块大小（样本数）
-        """
-        # 1. 尝试从缓存获取
-        cache_key = (duration_ms, sample_rate)
-        if cache_key in self._chunk_size_cache:
-            return self._chunk_size_cache[cache_key]
-
-        # 2. 尝试从预计算表获取
-        if sample_rate in CHUNK_SIZES and duration_ms in CHUNK_SIZES[sample_rate]:
-            result = CHUNK_SIZES[sample_rate][duration_ms]
-            self._chunk_size_cache[cache_key] = result
-            return result
-
-        # 3. 动态计算
-        result = int(duration_ms * sample_rate / 1000)
-        self._chunk_size_cache[cache_key] = result
-        return result
-
-    def calculate_overlap_size(self, overlap_ms: int, sample_rate: int) -> int:
-        """
-        计算重叠区域大小
-        
-        Args:
-            overlap_ms: 重叠时长（毫秒）
-            sample_rate: 采样率
-            
-        Returns:
-            重叠大小（样本数）
-        """
-        return int(overlap_ms * sample_rate / 1000)
 
     def _pcma_to_float32(self, pcma_data: np.ndarray) -> np.ndarray:
         """
@@ -418,11 +375,6 @@ class AudioFormatProcessor:
             })
 
         return info
-
-    def clear_cache(self) -> None:
-        """清除所有缓存"""
-        self._chunk_size_cache.clear()
-        self._conversion_cache.clear()
 
 __all__ = [
     "AudioFormatProcessor", "CHUNK_SIZES"

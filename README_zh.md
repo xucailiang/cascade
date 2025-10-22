@@ -32,9 +32,9 @@ Cascade是一个专为语音活动检测(VAD)设计的**生产级**、**高性�
 | **准确性** | 高 | 基于Silero VAD，保证检测准确性 |
 | **架构** | 1:1:1:1 | 每个处理器实例独立模型 |
 
-### 性能建议
+### 性能特性
 
-- **推荐块大小**: 1024字节，兼顾速度和吞吐量的最佳平衡
+- **各种块大小下的优异性能**: 在不同块大小下都能保持高吞吐量和低延迟
 - **实时处理能力**: 亚毫秒级处理时间支持实时应用
 - **可扩展性**: 独立处理器实例实现线性性能扩展
 
@@ -89,90 +89,6 @@ graph TD
         StateMachine --> |start| Collecting[开始收集]
         StateMachine --> |end| SpeechSegment[语音段输出]
     end
-```
-
-### 核心组件交互流程
-
-```mermaid
-sequenceDiagram
-    participant Client as 客户端
-    participant Processor as 流式处理器
-    participant Instance as Cascade实例
-    participant Buffer as 帧对齐缓冲区
-    participant VAD as Silero VAD
-    participant Collector as 语音收集器
-    
-    Client->>Processor: 发送音频数据
-    Processor->>Instance: 分配实例处理
-    Instance->>Buffer: 写入音频数据
-    
-    loop 帧处理
-        Buffer->>Buffer: 检查完整帧
-        Buffer->>VAD: 读取512样本帧
-        VAD->>VAD: VAD检测
-        
-        alt 检测到语音开始
-            VAD->>Collector: 开始收集
-            Collector->>Collector: 存储帧
-        else 检测到语音结束
-            VAD->>Collector: 结束收集
-            Collector->>Instance: 返回语音段
-            Instance->>Processor: 输出语音段
-            Processor->>Client: 返回结果
-        else 非语音帧
-            VAD->>Instance: 返回单帧
-            Instance->>Processor: 输出单帧
-            Processor->>Client: 返回结果
-        end
-    end
-```
-
-## 🔍 性能优化策略
-
-### 1. 独立架构设计 (1:1:1:1架构)
-
-每个StreamProcessor实例加载自己独立的VAD模型，完全消除线程安全问题和锁竞争：
-
-```python
-# 独立架构设计示例
-class StreamProcessor:
-    async def initialize(self):
-        # 1:1:1:1独立：一个处理器、一个模型、一个迭代器、一个缓冲区、一个状态机
-        self.vad_model = await asyncio.to_thread(self._load_vad_model)  # 独立模型
-        self.vad_iterator = VADIterator(self.vad_model)                 # 独立迭代器
-        self.frame_buffer = FrameAlignedBuffer()                       # 独立缓冲区
-        self.state_machine = VADStateMachine()                         # 独立状态机
-```
-
-### 2. 帧对齐缓冲区
-
-专门针对512样本帧优化的高效缓冲区，避免了复杂的重叠处理：
-
-```python
-# 帧对齐缓冲区示例
-def read_frame(self) -> Optional[bytes]:
-    """读取一个完整的512样本帧"""
-    if not self.has_complete_frame():
-        return None
-    
-    # 提取512样本帧
-    frame_data = bytes(self._buffer[:self._frame_size_bytes])
-    
-    # 从缓冲区移除已读取的数据
-    self._buffer = self._buffer[self._frame_size_bytes:]
-    
-    return frame_data
-```
-
-### 3. 内存优化
-
-使用bytearray和零拷贝设计，减少内存分配和数据复制：
-
-```python
-# 内存优化示例
-def write(self, audio_data: bytes) -> None:
-    """写入音频数据到缓冲区"""
-    self._buffer.extend(audio_data)  # 直接扩展，避免复制
 ```
 
 ## 🚀 快速开始
@@ -254,7 +170,6 @@ async def advanced_example():
 
 asyncio.run(advanced_example())
 ```
-
 
 ## 🧪 测试脚本
 
@@ -369,31 +284,6 @@ print(f"内存使用: {stats.memory_usage_mb:.1f}MB")
 4. **代码检查**: `ruff check . && black --check .`
 5. **类型检查**: `mypy cascade`
 6. **提交PR**并描述变更
-
-### 开发环境设置
-
-```bash
-# 克隆项目
-git clone https://github.com/xucailiang/cascade.git
-cd cascade
-
-# 创建虚拟环境
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# 或 venv\Scripts\activate  # Windows
-
-# 安装开发依赖
-pip install -e .
-
-# 安装pre-commit钩子
-pre-commit install
-
-# 运行测试
-python -m pytest tests/ -v
-
-# 运行性能测试
-python tests/benchmark_performance.py
-```
 
 ## 📄 许可证
 

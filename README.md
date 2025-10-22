@@ -33,9 +33,9 @@ Based on our latest streaming VAD performance tests with different chunk sizes:
 | **Accuracy**            | High          | Guaranteed by the Silero VAD model      |
 | **Architecture**        | 1:1:1:1       | Independent model per processor instance |
 
-### Performance Recommendations
+### Performance Characteristics
 
-- **Recommended chunk size**: 1024 bytes for optimal balance of speed and throughput
+- **Excellent performance across chunk sizes**: High throughput and low latency with various chunk sizes
 - **Real-time capability**: Sub-millisecond processing enables real-time applications
 - **Scalability**: Linear performance scaling with independent processor instances
 
@@ -90,90 +90,6 @@ graph TD
         StateMachine --> |start| Collecting[Start Collecting]
         StateMachine --> |end| SpeechSegment[Speech Segment Output]
     end
-```
-
-### Core Component Interaction Flow
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Processor as StreamProcessor
-    participant Instance as CascadeInstance
-    participant Buffer as FrameAlignedBuffer
-    participant VAD as SileroVAD
-    participant Collector as SpeechCollector
-    
-    Client->>Processor: Send audio data
-    Processor->>Instance: Allocate instance for processing
-    Instance->>Buffer: Write audio data
-    
-    loop Frame Processing
-        Buffer->>Buffer: Check for complete frame
-        Buffer->>VAD: Read 512-sample frame
-        VAD->>VAD: Perform VAD
-        
-        alt Voice Start Detected
-            VAD->>Collector: Start collecting
-            Collector->>Collector: Store frames
-        else Voice End Detected
-            VAD->>Collector: End collecting
-            Collector->>Instance: Return speech segment
-            Instance->>Processor: Output speech segment
-            Processor->>Client: Return result
-        else Non-speech Frame
-            VAD->>Instance: Return single frame
-            Instance->>Processor: Output single frame
-            Processor->>Client: Return result
-        end
-    end
-```
-
-## 🔍 Performance Optimization Strategies
-
-### 1. Independent Architecture (1:1:1:1 Design)
-
-Each StreamProcessor instance loads its own independent VAD model, completely eliminating thread safety concerns and lock contention.
-
-```python
-# Example of independent architecture
-class StreamProcessor:
-    async def initialize(self):
-        # 1:1:1:1 Independent: One processor, one model, one iterator, one buffer, one state machine
-        self.vad_model = await asyncio.to_thread(self._load_vad_model)  # Independent model
-        self.vad_iterator = VADIterator(self.vad_model)                 # Independent iterator
-        self.frame_buffer = FrameAlignedBuffer()                       # Independent buffer
-        self.state_machine = VADStateMachine()                         # Independent state
-```
-
-### 2. Frame-Aligned Buffer
-
-An efficient buffer optimized for 512-sample frames, avoiding complex overlap handling.
-
-```python
-# Example of frame-aligned buffer
-def read_frame(self) -> Optional[bytes]:
-    """Reads a complete 512-sample frame."""
-    if not self.has_complete_frame():
-        return None
-    
-    # Extract the 512-sample frame
-    frame_data = bytes(self._buffer[:self._frame_size_bytes])
-    
-    # Remove the read data from the buffer
-    self._buffer = self._buffer[self._frame_size_bytes:]
-    
-    return frame_data
-```
-
-### 3. Memory Optimization
-
-Uses `bytearray` and zero-copy design to reduce memory allocation and data copying.
-
-```python
-# Example of memory optimization
-def write(self, audio_data: bytes) -> None:
-    """Writes audio data to the buffer."""
-    self._buffer.extend(audio_data)  # Extend buffer directly to avoid copying
 ```
 
 ## 🚀 Quick Start
@@ -369,31 +285,6 @@ We welcome community contributions! Please follow these steps:
 4.  **Lint your code**: `ruff check . && black --check .`
 5.  **Type check**: `mypy cascade`
 6.  **Submit a Pull Request** with a clear description of your changes.
-
-### Development Setup
-
-```bash
-# Clone the project
-git clone https://github.com/xucailiang/cascade.git
-cd cascade
-
-# Create a virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# or venv\Scripts\activate  # Windows
-
-# Install development dependencies
-pip install -e .
-
-# Install pre-commit hooks
-pre-commit install
-
-# Run tests
-python -m pytest tests/ -v
-
-# Run performance tests
-python tests/benchmark_performance.py
-```
 
 ## 📄 License
 
