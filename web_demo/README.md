@@ -43,9 +43,12 @@ pnpm install  # 或 npm install
 
 ## 运行说明
 
-### 启动后端服务器
+### 安装额外依赖并启动后端服务
 
 ```bash
+
+poetry install --extras "demo"
+
 cd web_demo
 python server.py
 ```
