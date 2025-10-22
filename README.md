@@ -95,6 +95,11 @@ graph TD
 
 ### Installation
 
+```
+pip install cascade-vad
+```
+OR
+
 ```bash
 # Using uv is recommended
 uv venv -p 3.12
