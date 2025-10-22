@@ -1,0 +1,45 @@
+# Cascade Web Demo 依赖安装指南
+
+## 必要依赖
+
+以下是运行Cascade Web Demo所需的Python依赖包：
+
+```bash
+# 后端依赖
+uvicorn>=0.35.0,<0.36.0
+fastapi>=0.116.1,<0.117.0
+websockets>=15.0.1,<16.0.0
+python-multipart>=0.0.20,<0.0.21
+aiofiles>=24.1.0,<25.0.0
+
+# 前端依赖 (需要Node.js环境)
+# 前端依赖通过pnpm或npm自动安装
+```
+
+## 安装方法
+
+### 方法1: 使用pip直接安装
+
+```bash
+pip install uvicorn fastapi websockets python-multipart aiofiles
+```
+
+### 方法2: 使用项目的可选依赖安装
+
+如果你已经安装了cascade项目，可以使用以下命令安装demo依赖：
+
+```bash
+pip install cascade-vad[demo]
+```
+
+### 方法3: 从本文件安装
+
+```bash
+pip install -r dependencies.txt
+```
+
+## 注意事项
+
+1. 建议在虚拟环境中安装依赖，避免影响全局Python环境
+2. 启动脚本会自动检测并安装缺失的依赖
+3. 前端依赖会在首次启动时自动安装（需要Node.js环境）
