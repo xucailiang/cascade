@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cascade-vad"
-version = "0.2.0"
+version = "1.0.0"
 description = "高性能异步并行VAD处理库"
 readme = "README.md"
 license = "MIT"
