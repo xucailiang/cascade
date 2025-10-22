@@ -309,19 +309,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 -   **Issue Tracker**: https://github.com/xucailiang/cascade/issues
 -   **Documentation**: https://cascade-vad.readthedocs.io/
 
-## 🗺️ Roadmap
-
-### v0.2.0 (Planned)
-- [ ] Support for more audio formats (MP3, FLAC)
-- [ ] Real-time microphone input support
-- [ ] WebSocket API interface
-- [ ] Performance optimization and memory reduction
-
-### v0.3.0 (Planned)
-- [ ] Multi-language VAD model support
-- [ ] Speech separation and enhancement
-- [ ] Cloud deployment support
-- [ ] Visual monitoring dashboard
+![img_v3_02ra_9845ba4a-a36d-4387-9d01-2b392c94d6cg](https://github.com/user-attachments/assets/1a21b891-d5fc-4319-a70d-f4c95ffaa7dd)
 
 ---
 
